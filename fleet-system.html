@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>أسطول خطوة محترف</title>
+<meta name="description" content="نظام متابعة فحص المركبات والمعدات الشهري - خطوة محترف">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: sticky bilingual app header + horizontal tab bar; phone-first single-column card
+   stack, responsive grids on desktop; field status captured as tri-state segmented chips
+   (not checkboxes) for fast thumb entry on a job site, mirroring the paper form's check columns */
+:root{
+  --bg:#F3F6F2;
+  --surface:#FFFFFF;
+  --surface-2:#EAF0E7;
+  --fg:#17211B;
+  --muted:#5B6B60;
+  --border:#D7E2D2;
+  --accent:#2F6690;
+  --accent-ink:#FFFFFF;
+  --leaf:#7C9C3C;
+  --leaf-ink:#FFFFFF;
+  --ok:#2E8B57;
+  --ok-bg:#E4F3E9;
+  --warn:#B07A1C;
+  --warn-bg:#FBF0DD;
+  --danger:#C1402E;
+  --danger-bg:#FBE8E5;
+  --shadow:0 1px 2px rgba(23,33,27,.06), 0 8px 24px -16px rgba(23,33,27,.25);
+  --font-display:'Cairo', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-body:'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121A16; --surface:#1A2420; --surface-2:#202C26; --fg:#EAF1EB; --muted:#9BB0A2;
+    --border:#2C3A33; --accent:#6FA8D8; --accent-ink:#0B1A24; --leaf:#A7C85C; --leaf-ink:#16220A;
+    --ok:#53B07D; --ok-bg:#163226; --warn:#E0AC4F; --warn-bg:#352A14; --danger:#E27A68; --danger-bg:#3A1E1A;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -16px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121A16; --surface:#1A2420; --surface-2:#202C26; --fg:#EAF1EB; --muted:#9BB0A2;
+  --border:#2C3A33; --accent:#6FA8D8; --accent-ink:#0B1A24; --leaf:#A7C85C; --leaf-ink:#16220A;
+  --ok:#53B07D; --ok-bg:#163226; --warn:#E0AC4F; --warn-bg:#352A14; --danger:#E27A68; --danger-bg:#3A1E1A;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -16px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-body); direction:rtl;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.disp{font-family:var(--font-display); text-wrap:balance}
+button,input,select,textarea{font-family:inherit; color:inherit}
+img{max-width:100%}
+[hidden]{display:none!important}
+a{color:var(--accent)}
+.container{max-width:1080px; margin:0 auto; padding-inline:16px}
+.en{direction:ltr; unicode-bidi:isolate; font-size:.78em; color:var(--muted); display:block; font-weight:500; letter-spacing:.01em}
+.bi-inline .en{display:inline; margin-inline-start:.4em}
+.ar{display:block}
+label.bi{display:block; font-weight:700; font-size:13.5px; margin-bottom:6px}
+
+/* header */
+.appbar{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:40;
+  background:linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%);
+  border-bottom:1px solid var(--border); box-shadow:var(--shadow);
+}
+.appbar-inner{display:flex; align-items:center; gap:12px; padding-block:10px}
+.appbar-logo{height:40px; width:auto; flex:none}
+.appbar-titles{display:flex; flex-direction:column; line-height:1.25; min-width:0}
+.appbar-titles b{font-family:var(--font-display); font-size:16px; font-weight:800}
+.appbar-titles span.sub{font-size:11px; color:var(--muted)}
+.appbar-spacer{flex:1}
+.appbar-badge{font-size:11px; color:var(--muted); background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:4px 10px; white-space:nowrap}
+
+.tabbar{display:flex; gap:4px; overflow-x:auto; padding:0 16px 10px; scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
+.tab{
+  flex:none; display:flex; flex-direction:column; align-items:center; gap:1px;
+  padding:7px 14px; border-radius:10px; border:1px solid transparent; background:transparent;
+  cursor:pointer; font-size:13px; font-weight:700; color:var(--muted);
+}
+.tab .en{font-size:10px; color:inherit; opacity:.75}
+.tab[aria-selected="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.tab[aria-selected="true"] .en{color:var(--accent-ink)}
+.tab:hover:not([aria-selected="true"]){background:var(--surface-2); color:var(--fg)}
+
+main{padding-block:18px 60px}
+
+/* cards & sections */
+.card{background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px}
+.section-bar{
+  display:flex; align-items:baseline; gap:8px; background:var(--accent); color:var(--accent-ink);
+  border-radius:10px; padding:9px 14px; margin-bottom:12px; font-weight:800; font-family:var(--font-display);
+}
+.section-bar .en{color:var(--accent-ink); opacity:.85; font-size:12px}
+.section-bar.leaf{background:var(--leaf); color:var(--leaf-ink)}
+.section-bar.leaf .en{color:var(--leaf-ink); opacity:.85}
+
+.grid{display:grid; gap:12px}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.grid-4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+
+.field input[type=text],.field input[type=date],.field input[type=number],.field select,.field textarea{
+  width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:9px; background:var(--surface);
+  color:var(--fg); font-size:14.5px;
+}
+.field textarea{min-height:64px; resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent); outline-offset:1px}
+.hint{font-size:11.5px; color:var(--muted); margin-top:4px}
+
+/* stat tiles */
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:16px}
+.stat{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow:var(--shadow)}
+.stat .num{font-family:var(--font-display); font-size:26px; font-weight:800; font-variant-numeric:tabular-nums}
+.stat .lbl{font-size:12px; color:var(--muted); font-weight:600}
+.stat .lbl .en{display:block}
+.stat.ok .num{color:var(--ok)} .stat.warn .num{color:var(--warn)} .stat.danger .num{color:var(--danger)}
+
+/* badges */
+.badge{display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap}
+.badge.ok{background:var(--ok-bg); color:var(--ok)}
+.badge.warn{background:var(--warn-bg); color:var(--warn)}
+.badge.danger{background:var(--danger-bg); color:var(--danger)}
+.badge.neutral{background:var(--surface-2); color:var(--muted)}
+
+/* segmented tri/bi state */
+.seg{display:flex; flex-wrap:wrap; gap:6px}
+.seg button{
+  border:1.5px solid var(--border); background:var(--surface); color:var(--fg);
+  border-radius:9px; padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; line-height:1.3; min-width:76px;
+}
+.seg button .en{font-size:9.5px; opacity:.8}
+.seg button[data-active="true"][data-tone="ok"]{background:var(--ok-bg); border-color:var(--ok); color:var(--ok)}
+.seg button[data-active="true"][data-tone="warn"]{background:var(--warn-bg); border-color:var(--warn); color:var(--warn)}
+.seg button[data-active="true"][data-tone="danger"]{background:var(--danger-bg); border-color:var(--danger); color:var(--danger)}
+
+/* checklist / equipment item cards */
+.item-card{border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:9px; background:var(--surface-2)}
+.item-head{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.item-idx{flex:none; width:24px; height:24px; border-radius:7px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums}
+.item-name b{display:block; font-size:14px}
+.item-name .en{font-size:11px}
+.item-row{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end}
+.item-row .mini{min-width:92px}
+.item-row .mini label{display:block; font-size:10.5px; color:var(--muted); font-weight:700; margin-bottom:3px}
+.item-row .mini input{width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-size:13px}
+.item-row .notes{flex:1 1 220px; min-width:180px}
+.item-row .notes input{width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-size:13px}
+.item-remove{flex:none; border:none; background:transparent; color:var(--danger); font-size:12px; font-weight:700; cursor:pointer; padding:4px 6px}
+
+/* photo slots */
+.photos-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px}
+.photo-slot{border:1.5px dashed var(--border); border-radius:12px; padding:10px; text-align:center; background:var(--surface)}
+.photo-slot b{display:block; font-size:12.5px}
+.photo-slot .en{font-size:10px; margin-bottom:6px}
+.photo-thumb{width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:8px; margin-bottom:6px; background:var(--surface-2)}
+.photo-pdf{width:100%; aspect-ratio:4/3; border-radius:8px; margin-bottom:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:26px}
+.photo-btn{display:inline-block; font-size:12px; font-weight:700; padding:7px 10px; border-radius:8px; border:1px solid var(--accent); color:var(--accent); background:transparent; cursor:pointer}
+.photo-status{font-size:10.5px; color:var(--ok); margin-top:4px; font-weight:700}
+
+/* buttons */
+.btn{display:inline-flex; align-items:center; gap:6px; justify-content:center; border:none; border-radius:10px; padding:11px 18px; font-size:14px; font-weight:800; cursor:pointer; font-family:var(--font-display)}
+.btn .en{font-size:11px; opacity:.85}
+.btn-primary{background:var(--accent); color:var(--accent-ink)}
+.btn-leaf{background:var(--leaf); color:var(--leaf-ink)}
+.btn-ghost{background:var(--surface-2); color:var(--fg); border:1px solid var(--border)}
+.btn-outline{background:transparent; color:var(--accent); border:1.5px solid var(--accent)}
+.btn-sm{padding:7px 12px; font-size:12.5px; border-radius:8px}
+.btn[disabled]{opacity:.55; cursor:not-allowed}
+.btn-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+
+.toast{
+  position:fixed; bottom:calc(16px + env(safe-area-inset-bottom,0px)); right:16px; left:16px; z-index:100;
+  display:flex; justify-content:center; pointer-events:none;
+}
+.toast-msg{
+  pointer-events:auto; background:var(--fg); color:var(--bg); padding:11px 18px; border-radius:12px;
+  font-size:13.5px; font-weight:700; box-shadow:var(--shadow); max-width:92vw; text-align:center;
+}
+
+/* dashboard vehicle card */
+.veh-card{border:1px solid var(--border); border-radius:14px; padding:14px; background:var(--surface); box-shadow:var(--shadow)}
+.veh-card-top{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.veh-code{font-family:var(--font-display); font-weight:800; font-size:16px}
+.veh-sub{font-size:12px; color:var(--muted)}
+.veh-rows{display:flex; flex-direction:column; gap:6px; margin:10px 0; font-size:12.5px}
+.veh-rows .r{display:flex; justify-content:space-between; gap:8px; align-items:center}
+.veh-rows .k{color:var(--muted)}
+.empty-state{text-align:center; padding:40px 16px; color:var(--muted)}
+.empty-state .big{font-size:38px; margin-bottom:8px}
+
+/* history list */
+.hist-row{
+  display:flex; align-items:center; gap:10px; padding:11px 12px; border:1px solid var(--border);
+  border-radius:12px; background:var(--surface); margin-bottom:8px; cursor:pointer;
+}
+.hist-row:hover{border-color:var(--accent)}
+.hist-icon{flex:none; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:16px; background:var(--surface-2)}
+.hist-main{flex:1; min-width:0}
+.hist-main .t1{font-weight:700; font-size:13.5px}
+.hist-main .t2{font-size:11.5px; color:var(--muted)}
+.filters{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px}
+.filters select{padding:8px 10px; border:1px solid var(--border); border-radius:9px; background:var(--surface); font-size:13px}
+
+/* overlay detail view */
+.overlay{position:fixed; inset:0; background:rgba(10,14,12,.55); z-index:200; display:flex; align-items:flex-end; justify-content:center}
+@media (min-width:720px){ .overlay{align-items:center} }
+.overlay-panel{
+  background:var(--bg); width:100%; max-width:760px; max-height:92vh; overflow-y:auto;
+  border-radius:18px 18px 0 0; padding:16px; padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+}
+@media (min-width:720px){ .overlay-panel{border-radius:18px} }
+.overlay-head{display:flex; align-items:center; gap:10px; margin-bottom:12px; position:sticky; top:0; background:var(--bg); padding-bottom:8px}
+.overlay-close{flex:none; border:none; background:var(--surface-2); width:34px; height:34px; border-radius:9px; font-size:16px; cursor:pointer}
+.kv{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:10px}
+.kv .kvi{background:var(--surface-2); border-radius:9px; padding:8px 10px}
+.kv .kvi .k{font-size:10.5px; color:var(--muted); font-weight:700}
+.kv .kvi .v{font-size:13.5px; font-weight:700}
+table.rep-table{width:100%; border-collapse:collapse; font-size:12.5px}
+table.rep-table th,table.rep-table td{border:1px solid var(--border); padding:6px 8px; text-align:start}
+table.rep-table th{background:var(--surface-2)}
+.thumb-row{display:flex; gap:8px; flex-wrap:wrap}
+.thumb-row img{width:84px; height:64px; object-fit:cover; border-radius:8px; border:1px solid var(--border)}
+
+.draft-note{display:flex; align-items:center; gap:10px; background:var(--warn-bg); color:var(--warn); border:1px solid var(--warn); border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:12.5px; font-weight:700}
+.draft-note button{margin-right:auto; background:none; border:1px solid var(--warn); color:var(--warn); border-radius:7px; padding:5px 9px; font-size:11.5px; cursor:pointer}
+
+.manage-row{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end}
+.manage-row .field{flex:1; min-width:120px}
+
+@media print{ body{display:none} }
+</style>
+</head>
+<body>
+
+<div id="toastHost" class="toast" aria-live="polite"></div>
+<div id="app"></div>
+
+<!-- Firebase (compat SDK) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- jsPDF + html2canvas: used only by the PDF export button -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<script>
+
+(function(){
+"use strict";
+
+/* ========================================================================
+   ضبط الإعدادات هنا / CONFIGURE HERE
+   ضع إعدادات Firebase الخاصة بمشروعك (نفس المشروع المستخدم في واجهة المتعاقدين)
+   Put your Firebase project settings here (same project used by the client portal)
+   ======================================================================== */
+var FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+/* إعدادات Cloudinary لرفع الصور مجانًا (نفس خدمة واجهة المتعاقدين الحالية)
+   Cloudinary settings for free photo uploads (same service used by the client portal) */
+var CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME";
+var CLOUDINARY_UPLOAD_PRESET = "YOUR_UNSIGNED_UPLOAD_PRESET";
+
+/* ========================================================================
+   DATA: logo, vehicles reference, checklist / equipment / readiness items
+   ======================================================================== */
+var LOGO_DATA_URL = "data:image/png;base64,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";
+
+var VEHICLE_CHECK_ITEMS = [
+  ["oil","زيت المحرك","Engine Oil"],
+  ["coolant","ماء / سائل الرديتر","Coolant / Radiator Fluid"],
+  ["brakefluid","زيت الفرامل","Brake Fluid"],
+  ["battery","البطارية","Battery"],
+  ["tirefr","الكفر الأمامي يمين","Front-Right Tire"],
+  ["tirefl","الكفر الأمامي يسار","Front-Left Tire"],
+  ["tirerr","الكفر الخلفي يمين","Rear-Right Tire"],
+  ["tirerl","الكفر الخلفي يسار","Rear-Left Tire"],
+  ["tirespare","الكفر الاحتياطي","Spare Tire"],
+  ["tirepressure","ضغط الكفرات","Tire Pressure"],
+  ["brakes","الفرامل","Brakes"],
+  ["lightsfront","الأنوار الأمامية","Front Lights"],
+  ["lightsrear","الأنوار الخلفية","Rear Lights"],
+  ["turnsignals","إشارات الانعطاف","Turn Signals"],
+  ["wipers","المساحات","Wipers"],
+  ["wiperfluid","ماء المساحات","Wiper Fluid"],
+  ["ac","المكيف","A/C"],
+  ["glass","الزجاج","Glass"],
+  ["mirrors","المرايا","Mirrors"],
+  ["exterior","الحالة الخارجية والبودي","Exterior & Body"],
+  ["dents","الصدمات والخدوش","Dents & Scratches"],
+  ["interior","الحالة الداخلية","Interior Condition"],
+  ["cleanliness","نظافة المركبة","Cleanliness"],
+  ["seats","المقاعد والطبلون","Seats & Dashboard"],
+  ["estemara","الاستمارة","Registration (Estemara)"],
+  ["insurance","التأمين","Insurance"],
+  ["periodic","الفحص الدوري","Periodic Inspection"]
+];
+
+var VEHICLE_PHOTOS = [
+  ["estemara","صورة الاستمارة","Registration Photo"],
+  ["fahs","صورة الفحص الدوري","Inspection Certificate Photo"],
+  ["odometer","صورة العداد","Odometer Photo"],
+  ["right","المركبة — يمين","Vehicle — Right Side"],
+  ["left","المركبة — يسار","Vehicle — Left Side"],
+  ["front","المركبة — أمام","Vehicle — Front"],
+  ["back","المركبة — خلف","Vehicle — Back"],
+  ["trunk","الصندوق من الداخل","Trunk — Inside"],
+  ["engine","المحرك والرديتر (بعد فتح الكبوت)","Engine & Radiator (Hood Open)"]
+];
+
+var EQUIPMENT_ITEMS = [
+  ["fogger","ماكينة تضبيب حراري (دخان)","Thermal Fogging Machine"],
+  ["ulv","ماكينة ULV","ULV Machine"],
+  ["manual10","ماكينة ضغط يدوي 10 لتر أو أقل","Manual Sprayer ≤10L"],
+  ["manual20","ماكينة ضغط يدوي 20 لتر","Manual Sprayer 20L"],
+  ["batt10","ماكينة ضغط بطارية 10 لتر أو أقل","Battery Sprayer ≤10L"],
+  ["batt20","ماكينة ضغط بطارية ظهر 20 لتر","Battery Backpack Sprayer 20L"],
+  ["gloria","ماكينة جلوريا ستيل","Gloria Steel Sprayer"],
+  ["preconstruct","ماكينة رش قبل البناء","Pre-Construction Spray Machine"],
+  ["chambertools","معدات فتح غرف التفتيش","Inspection Chamber Tools"],
+  ["hilti","شنيور دريل هيلتي","Hilti Drill"],
+  ["drilltermite","شنيور عادي (ريش طويلة لحفر النمل الأبيض)","Standard Drill (Long Bits – Termite)"],
+  ["putty","سكاكين معجون (أبو جمل)","Putty Knives"],
+  ["screwdriver","مفك","Screwdriver"],
+  ["hammer","شاكوش","Hammer"],
+  ["ladder","سلم","Ladder"],
+  ["wiredetector","جهاز كشف تمديدات الكهرباء","Electrical Wiring Detector"],
+  ["toolbox","صندوق معدات / عدة يدوية","Tool Box / Hand Tools"],
+  ["pestbox","صندوق وضع المبيدات","Pesticide Storage Box"],
+  ["safetybox","صندوق معدات السلامة","Safety Equipment Box"],
+  ["uniform","يونيفورم الشركة","Company Uniform"],
+  ["helmet","خوذة سلامة","Safety Helmet"],
+  ["boots","جزمة سلامة","Safety Boots"],
+  ["vest","سديري سلامة","Safety Vest"],
+  ["gloves","قفازات","Gloves"],
+  ["masks","كمامات","Masks"],
+  ["goggles","نظارات حماية","Safety Goggles"],
+  ["personalbox","صندوق الأغراض الشخصية","Personal Belongings Box"],
+  ["firstaid","شنطة إسعافات أولية","First Aid Kit"],
+  ["extinguisher","طفاية حريق","Fire Extinguisher"],
+  ["triangle","مثلث / أقماع تحذيرية","Warning Triangle / Cones"],
+  ["flashlight","كشاف","Flashlight"],
+  ["extension","وصلة كهرباء","Extension Cord"],
+  ["mixingtools","أدوات قياس وخلط المبيدات","Pesticide Mixing & Measuring Tools"]
+];
+
+var READINESS_ITEMS = [
+  ["secured","المعدات مثبتة ومرتبة","Equipment Secured & Organized"],
+  ["noleak","لا يوجد تسريب من المعدات أو العبوات","No Leaks from Equipment/Containers"],
+  ["clean","المعدات نظيفة","Equipment Clean"],
+  ["loadclean","منطقة تحميل المعدات نظيفة","Loading Area Clean"],
+  ["safetycomplete","معدات السلامة مكتملة","Safety Equipment Complete"],
+  ["usable","جميع المعدات صالحة للاستخدام","All Equipment Usable"],
+  ["nohazard","لا توجد معدات تالفة أو خطرة داخل السيارة","No Damaged/Hazardous Items"]
+];
+
+var VEHICLE_EVAL = [
+  ["sound_ready","سليمة وجاهزة للعمل","Sound & Ready","ok"],
+  ["followup","تحتاج متابعة","Needs Follow-up","warn"],
+  ["maintenance","تحتاج صيانة","Needs Maintenance","danger"],
+  ["prohibited","يمنع استخدامها حتى الإصلاح","Prohibited Until Repaired","danger"]
+];
+var EQUIP_EVAL = [
+  ["ready","جاهزة للعمل","Ready for Work","ok"],
+  ["ready_notes","جاهزة مع ملاحظات","Ready with Remarks","warn"],
+  ["needs_equipment","تحتاج استكمال معدات","Needs Equipment","warn"],
+  ["not_ready","غير جاهزة للعمل","Not Ready","danger"]
+];
+
+/* ========================================================================
+   SMALL HELPERS
+   ======================================================================== */
+function esc(s){
+  s = (s===undefined||s===null) ? "" : String(s);
+  return s.replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function bi(ar,en){ return '<span class="ar">'+esc(ar)+'</span><span class="en">'+esc(en)+'</span>'; }
+function biInline(ar,en){ return '<span class="bi-inline"><span class="ar">'+esc(ar)+'</span><span class="en">'+esc(en)+'</span></span>'; }
+function todayISO(){ var d=new Date(); return d.toISOString().slice(0,10); }
+function fmtDate(iso){
+  if(!iso) return "—";
+  try{
+    var d = new Date(iso.length<=10 ? iso+"T00:00:00" : iso);
+    if(isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("ar-SA-u-nu-latn",{year:"numeric",month:"2-digit",day:"2-digit"});
+  }catch(e){ return iso; }
+}
+function daysUntil(iso){
+  if(!iso) return null;
+  var d = new Date(iso+"T00:00:00");
+  if(isNaN(d.getTime())) return null;
+  var now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((d.getTime()-now.getTime())/86400000);
+}
+function qs(sel,root){ return (root||document).querySelector(sel); }
+function qsa(sel,root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+function on(el,ev,fn){ if(el) el.addEventListener(ev,fn); }
+function uuid(){ return 'id-'+Math.random().toString(36).slice(2)+Date.now().toString(36); }
+
+function showToast(ar,en){
+  var host = qs("#toastHost");
+  var el = document.createElement("div");
+  el.className = "toast-msg";
+  el.innerHTML = esc(ar) + (en ? ' <span class="en" style="color:inherit;opacity:.8;display:inline">'+esc(en)+'</span>' : '');
+  host.innerHTML = "";
+  host.appendChild(el);
+  setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 3400);
+}
+
+function safeLocalGet(k){ try{ var v = localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
+function safeLocalSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function safeLocalDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+/* ========================================================================
+   STATE
+   ======================================================================== */
+var state = {
+  tab: "dashboard",
+  dbns: null, assetsns: null, downloadsns: null, userns: null,
+  capReady: false,
+  vehicles: [],
+  vehiclesLoaded: false,
+  vReports: [],
+  eReports: [],
+  reportsLoaded: false,
+  profiles: {},
+  myId: null,
+  overlay: null /* {type,report} */
+};
+
+function freshVehicleDraft(){
+  var checklist = {};
+  VEHICLE_CHECK_ITEMS.forEach(function(it){ checklist[it[0]] = {status:"", notes:""}; });
+  return {
+    vehicleCode:"", city:"", vehicleType:"", plate:"", fuel:"", driverName:"",
+    inspectionDate: todayISO(), odometer:"",
+    oilLastDate:"", oilLastOdometer:"", oilNextDueKm:"", oilNextDueDate:"",
+    sparkPlugsNote:"", filtersNote:"",
+    estemaraExpiry:"", fahsExpiry:"", insuranceExpiry:"",
+    checklist: checklist,
+    photos: {},
+    evaluation:"", faults:"", requiredAction:"",
+    supervisorName:"", driverName2:"", nextFollowup:""
+  };
+}
+function freshEquipmentDraft(){
+  var items = {};
+  EQUIPMENT_ITEMS.forEach(function(it){ items[it[0]] = {req:"",have:"",avail:"",cond:"",notes:""}; });
+  var readiness = {};
+  READINESS_ITEMS.forEach(function(it){ readiness[it[0]] = ""; });
+  return {
+    vehicleCode:"", plate:"", city:"", driverTech:"", supervisorName:"", date: todayISO(), odometer:"",
+    items: items, extraItems:[],
+    readiness: readiness,
+    missingNotes:"", maintenanceNotes:"", requiredAction:"",
+    finalEvaluation:"", technicianName:""
+  };
+}
+
+var vehicleDraft = safeLocalGet("ps_vehicle_draft_v1") || freshVehicleDraft();
+var equipmentDraft = safeLocalGet("ps_equipment_draft_v1") || freshEquipmentDraft();
+var vehicleDraftRestored = !!safeLocalGet("ps_vehicle_draft_v1");
+var equipmentDraftRestored = !!safeLocalGet("ps_equipment_draft_v1");
+
+function saveVehicleDraft(){ safeLocalSet("ps_vehicle_draft_v1", vehicleDraft); }
+function saveEquipmentDraft(){ safeLocalSet("ps_equipment_draft_v1", equipmentDraft); }
+
+/* ========================================================================
+   APP SHELL
+   ======================================================================== */
+var TABS = [
+  ["dashboard","الرئيسية","Dashboard"],
+  ["vehicle","تقرير مركبة","Vehicle Report"],
+  ["equipment","تقرير معدات","Equipment Report"],
+  ["history","السجل","History"]
+];
+
+function renderShell(){
+  var app = qs("#app");
+  app.innerHTML =
+    '<header class="appbar"><div class="container appbar-inner">'+
+      '<img class="appbar-logo" src="'+LOGO_DATA_URL+'" alt="Professional Step logo">'+
+      '<div class="appbar-titles"><b>أسطول خطوة محترف</b><span class="sub">Professional Step Fleet &amp; Equipment</span></div>'+
+      '<div class="appbar-spacer"></div>'+
+      '<div class="appbar-badge" id="connBadge">'+bi("جارٍ الاتصال…","Connecting…")+'</div>'+
+    '</div>'+
+    '<nav class="container tabbar" id="tabbar" role="tablist"></nav>'+
+    '</header>'+
+    '<main class="container" id="main"></main>';
+  renderTabbar();
+  renderTab();
+}
+
+function renderTabbar(){
+  var bar = qs("#tabbar");
+  bar.innerHTML = TABS.map(function(t){
+    return '<button class="tab" role="tab" data-tab="'+t[0]+'" aria-selected="'+(state.tab===t[0])+'">'+
+      '<span class="ar">'+esc(t[1])+'</span><span class="en">'+esc(t[2])+'</span></button>';
+  }).join("");
+  qsa(".tab",bar).forEach(function(btn){
+    on(btn,"click",function(){
+      state.tab = btn.getAttribute("data-tab");
+      location.hash = state.tab;
+      renderTabbar();
+      renderTab();
+      window.scrollTo({top:0,behavior:"instant" in window ? "instant":"auto"});
+    });
+  });
+}
+
+function renderTab(){
+  var main = qs("#main");
+  if(state.tab==="dashboard") main.innerHTML = dashboardHTML();
+  else if(state.tab==="vehicle") main.innerHTML = vehicleFormHTML();
+  else if(state.tab==="equipment") main.innerHTML = equipmentFormHTML();
+  else main.innerHTML = historyHTML();
+
+  if(state.tab==="dashboard") wireDashboard();
+  if(state.tab==="vehicle") wireVehicleForm();
+  if(state.tab==="equipment") wireEquipmentForm();
+  if(state.tab==="history") wireHistory();
+}
+
+/* ========================================================================
+   DASHBOARD
+   ======================================================================== */
+function latestReportFor(code, list){
+  var best=null;
+  for(var i=0;i<list.length;i++){
+    if(list[i].vehicleCode===code){ if(!best || (list[i].createdAt>best.createdAt)) best=list[i]; }
+  }
+  return best;
+}
+function monthCount(list){
+  var now=new Date(); var ym=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  return list.filter(function(r){ return (r.createdAt||"").slice(0,7)===ym; }).length;
+}
+function expiryBadge(iso,labelAr,labelEn){
+  var d = daysUntil(iso);
+  var tone = "neutral", text = labelAr+": —";
+  if(d===null){ text = labelAr+": —"; }
+  else if(d<0){ tone="danger"; text = labelAr+": منتهي"; }
+  else if(d<=30){ tone="warn"; text = labelAr+": "+d+" يوم"; }
+  else { tone="ok"; text = labelAr+": "+fmtDate(iso); }
+  return '<span class="badge '+tone+'">'+esc(text)+'</span>';
+}
+function evalBadge(code, table){
+  var row = table.filter(function(r){return r[0]===code;})[0];
+  if(!row) return '<span class="badge neutral">'+bi("—","—")+'</span>';
+  return '<span class="badge '+row[3]+'">'+esc(row[1])+'</span>';
+}
+
+function dashboardHTML(){
+  var vehicles = state.vehicles;
+  var vReports = state.vReports, eReports = state.eReports;
+  var maintCount = 0;
+  vehicles.forEach(function(v){
+    var lr = latestReportFor(v.code, vReports);
+    if(lr && lr.checklist){ Object.keys(lr.checklist).forEach(function(k){ if(lr.checklist[k] && lr.checklist[k].status==="maintenance") maintCount++; }); }
+    var le = latestReportFor(v.code, eReports);
+    if(le && le.items){ Object.keys(le.items).forEach(function(k){ if(le.items[k] && le.items[k].cond==="maintenance") maintCount++; if(le.items[k] && le.items[k].avail==="missing") maintCount++; }); }
+  });
+  var expiringSoon = 0;
+  vehicles.forEach(function(v){
+    var lr = latestReportFor(v.code, vReports);
+    if(lr){
+      [lr.estemaraExpiry,lr.fahsExpiry,lr.insuranceExpiry].forEach(function(d){
+        var n = daysUntil(d); if(n!==null && n<=30) expiringSoon++;
+      });
+    }
+  });
+
+  var statsHTML =
+    '<div class="stats">'+
+      '<div class="stat"><div class="num">'+vehicles.length+'</div><div class="lbl">'+bi("عدد المركبات","Vehicles")+'</div></div>'+
+      '<div class="stat"><div class="num">'+(monthCount(vReports)+monthCount(eReports))+'</div><div class="lbl">'+bi("تقارير هذا الشهر","Reports This Month")+'</div></div>'+
+      '<div class="stat '+(maintCount>0?"warn":"ok")+'"><div class="num">'+maintCount+'</div><div class="lbl">'+bi("بنود تحتاج صيانة","Items Needing Maintenance")+'</div></div>'+
+      '<div class="stat '+(expiringSoon>0?"danger":"ok")+'"><div class="num">'+expiringSoon+'</div><div class="lbl">'+bi("وثائق قريبة الانتهاء","Documents Expiring Soon")+'</div></div>'+
+    '</div>';
+
+  var vehCards;
+  if(!state.vehiclesLoaded){
+    vehCards = '<div class="empty-state">'+bi("جارٍ تحميل المركبات…","Loading vehicles…")+'</div>';
+  } else if(vehicles.length===0){
+    vehCards = '<div class="empty-state card"><div class="big">🚐</div>'+
+      '<div style="font-weight:800;margin-bottom:4px">'+bi("لا توجد مركبات بعد","No vehicles yet")+'</div>'+
+      '<div style="font-size:12.5px">'+bi("أضف أول مركبة من النموذج أدناه","Add your first vehicle below")+'</div></div>';
+  } else {
+    vehCards = '<div class="grid grid-3">'+vehicles.map(function(v){
+      var lr = latestReportFor(v.code, vReports);
+      var le = latestReportFor(v.code, eReports);
+      return '<div class="veh-card">'+
+        '<div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div>'+
+          '<div class="veh-sub">'+esc(v.city||"")+' · '+esc(v.vehicleType||v.type||"")+'</div></div></div>'+
+        '<div class="veh-rows">'+
+          '<div class="r"><span class="k">'+bi("آخر فحص مركبة","Last Vehicle Check")+'</span>'+
+            (lr? evalFromCodeBadge(lr.evaluation, VEHICLE_EVAL) : '<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div>'+
+          '<div class="r"><span class="k">'+bi("آخر فحص معدات","Last Equipment Check")+'</span>'+
+            (le? evalFromCodeBadge(le.finalEvaluation, EQUIP_EVAL) : '<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div>'+
+        '</div>'+
+        (lr? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
+            expiryBadge(lr.estemaraExpiry,"استمارة","")+expiryBadge(lr.fahsExpiry,"فحص","")+expiryBadge(lr.insuranceExpiry,"تأمين","") +
+          '</div>' : '')+
+        '<div class="btn-row">'+
+          '<button class="btn btn-outline btn-sm" data-newveh="'+esc(v.code)+'">'+bi("+ تقرير مركبة","+ Vehicle")+'</button>'+
+          '<button class="btn btn-outline btn-sm" data-neweq="'+esc(v.code)+'">'+bi("+ تقرير معدات","+ Equipment")+'</button>'+
+        '</div>'+
+      '</div>';
+    }).join("")+'</div>';
+  }
+
+  var recent = vReports.map(function(r){return {type:"vehicle",r:r};})
+    .concat(eReports.map(function(r){return {type:"equipment",r:r};}))
+    .sort(function(a,b){ return (b.r.createdAt||"") > (a.r.createdAt||"") ? 1 : -1; })
+    .slice(0,8);
+  var recentHTML = recent.length ? recent.map(function(x){ return historyRowHTML(x.type,x.r); }).join("") :
+    '<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>';
+
+  return statsHTML +
+    '<div class="section-bar leaf">'+bi("المركبات","Vehicles")+'</div>'+
+    vehCards +
+    '<div class="card" style="margin-top:14px">'+
+      '<div class="section-bar">'+bi("إضافة مركبة جديدة","Add New Vehicle")+'</div>'+
+      '<div class="manage-row">'+
+        '<div class="field"><label class="bi">'+bi("كود المركبة","Vehicle Code")+'</label><input type="text" id="mvCode" placeholder="JED-03"></div>'+
+        '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><input type="text" id="mvCity" placeholder="جدة / Jeddah"></div>'+
+        '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><input type="text" id="mvType"></div>'+
+        '<div class="field"><label class="bi">'+bi("رقم اللوحة","Plate No.")+'</label><input type="text" id="mvPlate"></div>'+
+        '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel")+'</label><select id="mvFuel"><option value="بنزين / Petrol">'+bi("بنزين","Petrol")+'</option><option value="ديزل / Diesel">'+bi("ديزل","Diesel")+'</option></select></div>'+
+        '<button class="btn btn-primary btn-sm" id="mvAdd">'+bi("إضافة","Add")+'</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="section-bar">'+bi("آخر النشاطات","Recent Activity")+'</div>'+
+    '<div>'+recentHTML+'</div>';
+}
+function evalFromCodeBadge(code, table){
+  var row = table.filter(function(r){return r[0]===code;})[0];
+  if(!row) return '<span class="badge neutral">'+bi("—","—")+'</span>';
+  return '<span class="badge '+row[3]+'">'+esc(row[1])+'</span>';
+}
+
+function wireDashboard(){
+  qsa("[data-newveh]").forEach(function(b){ on(b,"click",function(){
+    vehicleDraft.vehicleCode = b.getAttribute("data-newveh");
+    var v = state.vehicles.filter(function(x){return x.code===vehicleDraft.vehicleCode;})[0];
+    if(v){ vehicleDraft.city=v.city||""; vehicleDraft.vehicleType=v.vehicleType||v.type||""; vehicleDraft.plate=v.plate||""; vehicleDraft.fuel=v.fuel||""; }
+    saveVehicleDraft();
+    state.tab="vehicle"; location.hash="vehicle"; renderTabbar(); renderTab();
+  });});
+  qsa("[data-neweq]").forEach(function(b){ on(b,"click",function(){
+    equipmentDraft.vehicleCode = b.getAttribute("data-neweq");
+    var v = state.vehicles.filter(function(x){return x.code===equipmentDraft.vehicleCode;})[0];
+    if(v){ equipmentDraft.city=v.city||""; equipmentDraft.plate=v.plate||""; }
+    saveEquipmentDraft();
+    state.tab="equipment"; location.hash="equipment"; renderTabbar(); renderTab();
+  });});
+  on(qs("#mvAdd"),"click", async function(){
+    var code = (qs("#mvCode").value||"").trim();
+    if(!code){ showToast("أدخل كود المركبة","Enter a vehicle code"); return; }
+    if(!state.dbns){ showToast("قاعدة البيانات غير متاحة","Database unavailable"); return; }
+    var body = {
+      code: code, city:(qs("#mvCity").value||"").trim(), vehicleType:(qs("#mvType").value||"").trim(),
+      plate:(qs("#mvPlate").value||"").trim(), fuel: qs("#mvFuel").value||"", active:true,
+      createdAt: new Date().toISOString()
+    };
+    try{
+      await state.dbns.collection("vehicles").doc(code).set(body);
+      showToast("تمت إضافة المركبة","Vehicle added");
+    }catch(e){ showToast("تعذرت الإضافة","Could not add vehicle"); }
+  });
+  qsa(".hist-row",qs("#main")).forEach(function(row){
+    on(row,"click",function(){ openDetailFromRow(row); });
+  });
+}
+
+/* ========================================================================
+   VEHICLE FORM
+   ======================================================================== */
+function segControl(groupId, options, selectedValue, size){
+  /* options: [ [value, ar, en, tone] ... ] */
+  return '<div class="seg" data-group="'+groupId+'">'+options.map(function(o){
+    var active = (o[0]===selectedValue);
+    return '<button type="button" data-val="'+esc(o[0])+'" data-tone="'+esc(o[3])+'" data-active="'+active+'">'+
+      '<span class="ar">'+esc(o[1])+'</span><span class="en">'+esc(o[2])+'</span></button>';
+  }).join("")+'</div>';
+}
+var TRI_CHECK = [["sound","سليم ✓","Sound","ok"],["followup","متابعة ⚠","Follow-up","warn"],["maintenance","صيانة ✕","Maintenance","danger"]];
+var AVAIL2 = [["available","موجود","Available","ok"],["missing","غير موجود","Missing","danger"]];
+var COND2 = [["sound","سليم","Sound","ok"],["maintenance","صيانة","Maintenance","danger"]];
+var READY3 = [["compliant","مطابق","Compliant","ok"],["correction","تصحيح","Needs Correction","warn"],["noncompliant","غير مطابق","Non-Compliant","danger"]];
+
+function vehicleCodeOptions(selected){
+  var opts = '<option value="">'+("— اختر / Select —")+'</option>';
+  state.vehicles.forEach(function(v){
+    opts += '<option value="'+esc(v.code)+'"'+(v.code===selected?" selected":"")+'>'+esc(v.code)+'</option>';
+  });
+  opts += '<option value="__custom__">'+("كود آخر… / Other code…")+'</option>';
+  return opts;
+}
+
+function vehicleFormHTML(){
+  var d = vehicleDraft;
+  var draftNote = vehicleDraftRestored ? '<div class="draft-note">'+bi("تم استرجاع مسودة محفوظة لم تُرسل بعد","A saved unsent draft was restored")+'<button id="clearVDraft">'+bi("مسح","Clear")+'</button></div>' : '';
+
+  var html = draftNote +
+  '<div class="section-bar">'+bi("نموذج الفحص والمتابعة الدورية للمركبة","Vehicle Periodic Inspection &amp; Maintenance Form")+'</div>'+
+  '<div class="card"><div class="grid grid-3">'+
+    field_select("vCode","كود المركبة","Vehicle Code", vehicleCodeOptions(d.vehicleCode)) +
+    field_text("vCustomCode","كود مخصص (إن لزم)","Custom Code (if needed)", d.vehicleCode && !state.vehicles.some(function(v){return v.code===d.vehicleCode;}) ? d.vehicleCode : "") +
+    field_text("vCity","المدينة","City", d.city) +
+    field_text("vType","نوع المركبة","Vehicle Type", d.vehicleType) +
+    field_text("vPlate","رقم اللوحة","Plate No.", d.plate) +
+    field_select("vFuel","نوع الوقود","Fuel Type", '<option value="">—</option><option value="بنزين / Petrol"'+(d.fuel==="بنزين / Petrol"?" selected":"")+'>'+bi("بنزين","Petrol")+'</option><option value="ديزل / Diesel"'+(d.fuel==="ديزل / Diesel"?" selected":"")+'>'+bi("ديزل","Diesel")+'</option>') +
+    field_text("vDriver","اسم السائق أو المسؤول","Driver / Responsible Name", d.driverName) +
+    field_date("vInspDate","تاريخ الفحص","Inspection Date", d.inspectionDate) +
+    field_number("vOdo","قراءة العداد الحالية (كم)","Current Odometer (KM)", d.odometer) +
+  '</div></div>'+
+
+  '<div class="section-bar">'+bi("الصيانة الدورية","Periodic Maintenance")+'</div>'+
+  '<div class="card"><div class="grid grid-3">'+
+    field_date("vOilDate","تاريخ آخر تغيير زيت محرك","Last Oil Change Date", d.oilLastDate) +
+    field_number("vOilOdo","العداد عند آخر تغيير زيت","Odometer at Last Change", d.oilLastOdometer) +
+    field_number("vOilNextKm","موعد تغيير الزيت القادم (كم)","Next Oil Change (KM)", d.oilNextDueKm) +
+    field_date("vOilNextDate","أو بتاريخ","Or by Date", d.oilNextDueDate) +
+    field_text("vSpark","شمعات الإشعال","Spark Plugs — Note", d.sparkPlugsNote) +
+    field_text("vFilters","الفلاتر (زيت / هواء)","Filters (Oil/Air) — Note", d.filtersNote) +
+  '</div></div>'+
+
+  '<div class="section-bar">'+bi("جدول فحص المركبة","Vehicle Inspection Checklist")+'</div>'+
+  '<div class="card" id="vChecklist">'+
+    VEHICLE_CHECK_ITEMS.map(function(it,i){ return checklistItemHTML("vchk",it,i+1,d.checklist[it[0]]); }).join("")+
+  '</div>'+
+
+  '<div class="section-bar">'+bi("تواريخ الوثائق","Document Expiry Dates")+'</div>'+
+  '<div class="card"><div class="grid grid-3">'+
+    field_date("vEstExp","انتهاء الاستمارة","Registration Expiry", d.estemaraExpiry) +
+    field_date("vInsExp","انتهاء التأمين","Insurance Expiry", d.insuranceExpiry) +
+    field_date("vFahsExp","انتهاء الفحص الدوري","Inspection Expiry", d.fahsExpiry) +
+  '</div></div>'+
+
+  '<div class="section-bar leaf">'+bi("صور المركبة","Vehicle Photos")+'</div>'+
+  '<div class="card"><div class="photos-grid" id="vPhotos">'+
+    VEHICLE_PHOTOS.map(function(p){ return photoSlotHTML("vphoto",p,d.photos[p[0]]); }).join("")+
+  '</div></div>'+
+
+  '<div class="section-bar">'+bi("التقييم العام للمركبة","Overall Vehicle Evaluation")+'</div>'+
+  '<div class="card">'+segControl("vEval", VEHICLE_EVAL, d.evaluation)+'</div>'+
+
+  '<div class="card grid grid-2">'+
+    field_textarea("vFaults","الأعطال / الملاحظات","Faults / Remarks", d.faults) +
+    field_textarea("vAction","الإجراء المطلوب","Required Action", d.requiredAction) +
+  '</div>'+
+
+  '<div class="section-bar">'+bi("التوقيعات والمتابعة","Signatures &amp; Follow-up")+'</div>'+
+  '<div class="card"><div class="grid grid-3">'+
+    field_text("vSupName","اسم المشرف","Supervisor Name", d.supervisorName) +
+    field_text("vDriver2","اسم السائق","Driver Name", d.driverName2) +
+    field_date("vNextFollow","تاريخ المتابعة القادمة","Next Follow-up Date", d.nextFollowup) +
+  '</div>'+
+  '<p class="hint">'+bi("التوقيع: تُعتمد التقارير داخل النظام باسم المستخدم المُرسِل بدل التوقيع اليدوي.","Signature: reports are attributed to the submitting user inside the system instead of a handwritten signature.")+'</p></div>'+
+
+  '<div class="btn-row" style="margin-top:6px">'+
+    '<button class="btn btn-primary" id="vSubmit">'+bi("إرسال التقرير","Submit Report")+'</button>'+
+    '<button class="btn btn-ghost" id="vReset">'+bi("مسح النموذج","Reset Form")+'</button>'+
+  '</div>';
+  return html;
+}
+
+function field_text(id,ar,en,val){ return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><input type="text" id="'+id+'" value="'+esc(val||"")+'"></div>'; }
+function field_number(id,ar,en,val){ return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><input type="number" id="'+id+'" value="'+esc(val||"")+'" inputmode="numeric"></div>'; }
+function field_date(id,ar,en,val){ return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><input type="date" id="'+id+'" value="'+esc(val||"")+'"></div>'; }
+function field_select(id,ar,en,optsHtml){ return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><select id="'+id+'">'+optsHtml+'</select></div>'; }
+function field_textarea(id,ar,en,val){ return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><textarea id="'+id+'">'+esc(val||"")+'</textarea></div>'; }
+
+function checklistItemHTML(prefix,it,idx,data){
+  data = data||{status:"",notes:""};
+  return '<div class="item-card" data-item="'+it[0]+'">'+
+    '<div class="item-head"><span class="item-idx">'+idx+'</span>'+
+      '<div class="item-name"><b>'+esc(it[1])+'</b><span class="en">'+esc(it[2])+'</span></div></div>'+
+    '<div class="item-row">'+segControl(prefix+"-"+it[0], TRI_CHECK, data.status)+
+      '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="'+prefix+'-'+it[0]+'-notes" value="'+esc(data.notes||"")+'"></div>'+
+    '</div></div>';
+}
+
+function photoSlotHTML(prefix,p,assetInfo){
+  var slotId = p[0];
+  var has = assetInfo && assetInfo.id;
+  var inner = '';
+  if(has && assetInfo.contentType==="application/pdf"){
+    inner = '<div class="photo-pdf">📄</div>';
+  } else if(has){
+    inner = '<img class="photo-thumb" src="'+esc(assetInfo.url||"")+'" alt="">';
+  } else {
+    inner = '<div class="photo-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>';
+  }
+  return '<div class="photo-slot" data-slot="'+slotId+'">'+
+    '<b>'+esc(p[1])+'</b><span class="en">'+esc(p[2])+'</span>'+
+    inner+
+    '<label class="photo-btn">'+bi(has?"تغيير":"رفع صورة", has?"Change":"Upload")+
+      '<input type="file" accept="image/*,application/pdf" capture="environment" style="display:none" data-photoinput="'+prefix+'-'+slotId+'"></label>'+
+    '<div class="photo-status" data-photostatus="'+prefix+'-'+slotId+'">'+(has?"✓ "+("تم الرفع"):"")+'</div>'+
+  '</div>';
+}
+
+function wireSegControls(root, draftGetter){
+  qsa(".seg",root).forEach(function(seg){
+    on(seg,"click",function(e){
+      var btn = e.target.closest("button[data-val]");
+      if(!btn) return;
+      qsa("button",seg).forEach(function(b){ b.setAttribute("data-active", b===btn ? "true":"false"); });
+      var group = seg.getAttribute("data-group");
+      draftGetter(group, btn.getAttribute("data-val"));
+    });
+  });
+}
+
+function wireVehicleForm(){
+  var root = qs("#main");
+  on(qs("#clearVDraft"),"click",function(){
+    vehicleDraft = freshVehicleDraft(); vehicleDraftRestored=false; safeLocalDel("ps_vehicle_draft_v1");
+    renderTab(); showToast("تم مسح المسودة","Draft cleared");
+  });
+
+  /* plain field bindings */
+  var map = [
+    ["vCode","vehicleCode"],["vCity","city"],["vType","vehicleType"],["vPlate","plate"],
+    ["vFuel","fuel"],["vDriver","driverName"],["vInspDate","inspectionDate"],["vOdo","odometer"],
+    ["vOilDate","oilLastDate"],["vOilOdo","oilLastOdometer"],["vOilNextKm","oilNextDueKm"],["vOilNextDate","oilNextDueDate"],
+    ["vSpark","sparkPlugsNote"],["vFilters","filtersNote"],
+    ["vEstExp","estemaraExpiry"],["vInsExp","insuranceExpiry"],["vFahsExp","fahsExpiry"],
+    ["vFaults","faults"],["vAction","requiredAction"],
+    ["vSupName","supervisorName"],["vDriver2","driverName2"],["vNextFollow","nextFollowup"]
+  ];
+  map.forEach(function(pair){
+    var el = qs("#"+pair[0]);
+    on(el,"input",function(){ vehicleDraft[pair[1]] = el.value; saveVehicleDraft(); });
+    on(el,"change",function(){ vehicleDraft[pair[1]] = el.value; saveVehicleDraft(); });
+  });
+  on(qs("#vCode"),"change",function(){
+    var code = qs("#vCode").value;
+    if(code==="__custom__"){ return; }
+    var v = state.vehicles.filter(function(x){return x.code===code;})[0];
+    if(v){
+      qs("#vCity").value = v.city||""; vehicleDraft.city=v.city||"";
+      qs("#vType").value = v.vehicleType||v.type||""; vehicleDraft.vehicleType=v.vehicleType||v.type||"";
+      qs("#vPlate").value = v.plate||""; vehicleDraft.plate=v.plate||"";
+      if(v.fuel){ qs("#vFuel").value = v.fuel; vehicleDraft.fuel=v.fuel; }
+      saveVehicleDraft();
+    }
+  });
+  on(qs("#vCustomCode"),"input",function(){ vehicleDraft.vehicleCode = qs("#vCustomCode").value; saveVehicleDraft(); });
+
+  /* checklist segments + notes */
+  wireSegControls(qs("#vChecklist"), function(group, val){
+    var itemId = group.split("-").slice(1).join("-");
+    vehicleDraft.checklist[itemId] = vehicleDraft.checklist[itemId] || {status:"",notes:""};
+    vehicleDraft.checklist[itemId].status = val;
+    saveVehicleDraft();
+  });
+  qsa("#vChecklist .notes input").forEach(function(inp){
+    on(inp,"input",function(){
+      var id = inp.id; /* vchk-<item>-notes */
+      var itemId = id.replace(/^vchk-/,"").replace(/-notes$/,"");
+      vehicleDraft.checklist[itemId] = vehicleDraft.checklist[itemId] || {status:"",notes:""};
+      vehicleDraft.checklist[itemId].notes = inp.value;
+      saveVehicleDraft();
+    });
+  });
+
+  /* evaluation */
+  wireSegControls(qs("#main"), function(group,val){
+    if(group==="vEval"){ vehicleDraft.evaluation = val; saveVehicleDraft(); }
+  });
+
+  /* photos */
+  qsa('[data-photoinput^="vphoto-"]').forEach(function(inp){
+    on(inp,"change",function(){
+      var file = inp.files && inp.files[0];
+      if(!file) return;
+      var slotId = inp.getAttribute("data-photoinput").replace("vphoto-","");
+      handlePhotoUpload("vphoto", slotId, file, vehicleDraft, saveVehicleDraft);
+    });
+  });
+
+  on(qs("#vSubmit"),"click", submitVehicleReport);
+  on(qs("#vReset"),"click",function(){
+    if(!confirm_("هل تريد مسح كل حقول النموذج؟","Clear all form fields?")) return;
+    vehicleDraft = freshVehicleDraft(); safeLocalDel("ps_vehicle_draft_v1"); vehicleDraftRestored=false;
+    renderTab();
+  });
+}
+
+function confirm_(ar,en){ try{ return window.confirm(ar+" / "+en); }catch(e){ return true; } }
+
+function uploadToCloudinary(file){
+  var isPdf = (file.type === "application/pdf");
+  var endpoint = "https://api.cloudinary.com/v1_1/"+CLOUDINARY_CLOUD_NAME+"/"+(isPdf?"auto":"image")+"/upload";
+  var fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  return fetch(endpoint, {method:"POST", body:fd}).then(function(resp){
+    if(!resp.ok) throw new Error("upload_failed");
+    return resp.json();
+  }).then(function(data){
+    return {
+      id: data.public_id,
+      url: data.secure_url,
+      contentType: isPdf ? "application/pdf" : ("image/"+(data.format||"jpg"))
+    };
+  });
+}
+
+async function handlePhotoUpload(prefix, slotId, file, draft, saver){
+  var statusEl = qs('[data-photostatus="'+prefix+'-'+slotId+'"]');
+  var slotEl = qs('.photo-slot[data-slot="'+slotId+'"]');
+  if(!CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME.indexOf("YOUR_")===0){
+    showToast("يجب ضبط إعدادات رفع الصور (Cloudinary) أولًا","Photo upload is not configured yet (set Cloudinary settings)");
+    return;
+  }
+  if(statusEl) statusEl.textContent = "جارٍ الرفع… Uploading…";
+  try{
+    var res = await uploadToCloudinary(file);
+    draft.photos[slotId] = {id:res.id, url:res.url, contentType:res.contentType};
+    saver();
+    if(slotEl){
+      var preview = slotEl.querySelector(".photo-thumb,.photo-pdf");
+      if(preview){
+        if(res.contentType==="application/pdf"){
+          var pdfDiv = document.createElement("div"); pdfDiv.className="photo-pdf"; pdfDiv.textContent="📄";
+          preview.replaceWith(pdfDiv);
+        } else {
+          var img = document.createElement("img"); img.className="photo-thumb"; img.src=res.url; img.alt="";
+          preview.replaceWith(img);
+        }
+      }
+      var btn = slotEl.querySelector(".photo-btn");
+      if(btn) btn.innerHTML = bi("تغيير","Change") + btn.querySelector("input").outerHTML;
+    }
+    if(statusEl) statusEl.textContent = "✓ تم الرفع";
+  }catch(e){
+    if(statusEl) statusEl.textContent = "";
+    showToast("فشل رفع الصورة، حاول مجددًا","Photo upload failed, try again");
+  }
+}
+
+async function submitVehicleReport(){
+  var d = vehicleDraft;
+  var code = (d.vehicleCode==="__custom__" ? "" : d.vehicleCode) || qs("#vCustomCode").value;
+  code = (code||"").trim();
+  if(!code){ showToast("يرجى اختيار أو إدخال كود المركبة","Please select or enter a vehicle code"); return; }
+  if(!d.inspectionDate){ showToast("يرجى تحديد تاريخ الفحص","Please set the inspection date"); return; }
+  if(!d.supervisorName || !d.supervisorName.trim()){ showToast("يرجى إدخال اسم المشرف","Please enter the supervisor name"); return; }
+  if(!state.dbns){ showToast("قاعدة البيانات غير متاحة حاليًا","Database unavailable right now"); return; }
+
+  var btn = qs("#vSubmit"); if(btn){ btn.disabled = true; btn.textContent = "جارٍ الإرسال… Sending…"; }
+  var photos = {};
+  Object.keys(d.photos).forEach(function(k){ if(d.photos[k] && d.photos[k].id) photos[k] = {id:d.photos[k].id, url:d.photos[k].url||"", contentType:d.photos[k].contentType||""}; });
+
+  var payload = {
+    vehicleCode: code, city:d.city||"", vehicleType:d.vehicleType||"", plate:d.plate||"", fuel:d.fuel||"",
+    driverName:d.driverName||"", inspectionDate:d.inspectionDate, odometer:d.odometer||"",
+    oilLastDate:d.oilLastDate||"", oilLastOdometer:d.oilLastOdometer||"", oilNextDueKm:d.oilNextDueKm||"", oilNextDueDate:d.oilNextDueDate||"",
+    sparkPlugsNote:d.sparkPlugsNote||"", filtersNote:d.filtersNote||"",
+    estemaraExpiry:d.estemaraExpiry||"", fahsExpiry:d.fahsExpiry||"", insuranceExpiry:d.insuranceExpiry||"",
+    checklist: d.checklist, photos: photos,
+    evaluation:d.evaluation||"", faults:d.faults||"", requiredAction:d.requiredAction||"",
+    supervisorName:d.supervisorName||"", driverName2:d.driverName2||"", nextFollowup:d.nextFollowup||"",
+    createdAt: new Date().toISOString(), createdBy: state.myId
+  };
+  try{
+    await state.dbns.collection("vehicle_reports").add(payload);
+    showToast("تم إرسال التقرير بنجاح","Report submitted successfully");
+    vehicleDraft = freshVehicleDraft(); vehicleDraftRestored=false; safeLocalDel("ps_vehicle_draft_v1");
+    state.tab="dashboard"; location.hash="dashboard"; renderTabbar(); renderTab();
+  }catch(e){
+    showToast("تعذر إرسال التقرير، حاول مجددًا","Could not submit report, try again");
+    if(btn){ btn.disabled=false; btn.innerHTML = bi("إرسال التقرير","Submit Report"); }
+  }
+}
+
+/* ========================================================================
+   EQUIPMENT FORM
+   ======================================================================== */
+function equipmentFormHTML(){
+  var d = equipmentDraft;
+  var draftNote = equipmentDraftRestored ? '<div class="draft-note">'+bi("تم استرجاع مسودة محفوظة لم تُرسل بعد","A saved unsent draft was restored")+'<button id="clearEDraft">'+bi("مسح","Clear")+'</button></div>' : '';
+
+  var html = draftNote +
+  '<div class="section-bar">'+bi("نموذج جرد وفحص معدات مركبة مكافحة الآفات","Pest Control Vehicle Equipment Checklist")+'</div>'+
+  '<div class="card"><div class="grid grid-3">'+
+    field_select("eCode","كود المركبة","Vehicle Code", vehicleCodeOptions(d.vehicleCode)) +
+    field_text("eCustomCode","كود مخصص (إن لزم)","Custom Code (if needed)", d.vehicleCode && !state.vehicles.some(function(v){return v.code===d.vehicleCode;}) ? d.vehicleCode : "") +
+    field_text("ePlate","رقم اللوحة","Plate No.", d.plate) +
+    field_text("eCity","المدينة","City", d.city) +
+    field_text("eTech","اسم السائق / الفني","Driver / Technician", d.driverTech) +
+    field_text("eSup","اسم المشرف","Supervisor Name", d.supervisorName) +
+    field_date("eDate","التاريخ","Date", d.date) +
+    field_number("eOdo","قراءة العداد","Odometer", d.odometer) +
+  '</div></div>'+
+
+  '<div class="section-bar leaf">'+bi("جرد وفحص المعدات","Equipment Inventory &amp; Inspection")+'</div>'+
+  '<div class="card" id="eqItems">'+
+    EQUIPMENT_ITEMS.map(function(it,i){ return equipmentItemHTML(it,i+1,d.items[it[0]]); }).join("")+
+  '</div>'+
+
+  '<div class="section-bar">'+bi("معدات إضافية","Additional Equipment")+'</div>'+
+  '<div class="card" id="extraItems">'+extraItemsHTML(d.extraItems)+
+    '<button class="btn btn-outline btn-sm" id="addExtra" type="button">'+bi("+ إضافة معدة","+ Add Equipment")+'</button>'+
+  '</div>'+
+
+  '<div class="section-bar">'+bi("حالة ترتيب وتجهيز السيارة","Vehicle Readiness Status")+'</div>'+
+  '<div class="card" id="readinessList">'+
+    READINESS_ITEMS.map(function(it,i){ return readinessItemHTML(it,i+1,d.readiness[it[0]]); }).join("")+
+  '</div>'+
+
+  '<div class="card grid grid-2">'+
+    field_textarea("eMissing","المعدات الناقصة","Missing Equipment", d.missingNotes) +
+    field_textarea("eMaint","المعدات التي تحتاج صيانة","Equipment Needing Maintenance", d.maintenanceNotes) +
+  '</div>'+
+  '<div class="card">'+field_textarea("eAction","الإجراء المطلوب","Required Action", d.requiredAction)+'</div>'+
+
+  '<div class="section-bar">'+bi("التقييم النهائي للمركبة والمعدات","Final Vehicle &amp; Equipment Evaluation")+'</div>'+
+  '<div class="card">'+segControl("eEval", EQUIP_EVAL, d.finalEvaluation)+'</div>'+
+
+  '<div class="section-bar">'+bi("التوقيعات","Signatures")+'</div>'+
+  '<div class="card"><div class="grid grid-2">'+
+    field_text("eSupName2","اسم المشرف","Supervisor Name", d.supervisorName) +
+    field_text("eTechName","اسم الفني أو السائق","Technician / Driver Name", d.technicianName) +
+  '</div>'+
+  '<p class="hint">'+bi("التوقيع: تُعتمد التقارير داخل النظام باسم المستخدم المُرسِل بدل التوقيع اليدوي.","Signature: reports are attributed to the submitting user inside the system instead of a handwritten signature.")+'</p></div>'+
+
+  '<div class="btn-row" style="margin-top:6px">'+
+    '<button class="btn btn-primary" id="eSubmit">'+bi("إرسال التقرير","Submit Report")+'</button>'+
+    '<button class="btn btn-ghost" id="eReset">'+bi("مسح النموذج","Reset Form")+'</button>'+
+  '</div>';
+  return html;
+}
+
+function equipmentItemHTML(it,idx,data){
+  data = data||{req:"",have:"",avail:"",cond:"",notes:""};
+  return '<div class="item-card" data-item="'+it[0]+'">'+
+    '<div class="item-head"><span class="item-idx">'+idx+'</span>'+
+      '<div class="item-name"><b>'+esc(it[1])+'</b><span class="en">'+esc(it[2])+'</span></div></div>'+
+    '<div class="item-row">'+
+      '<div class="mini"><label>'+("الكمية المطلوبة / Required")+'</label><input type="number" id="eq-'+it[0]+'-req" value="'+esc(data.req||"")+'"></div>'+
+      '<div class="mini"><label>'+("الكمية الموجودة / Available")+'</label><input type="number" id="eq-'+it[0]+'-have" value="'+esc(data.have||"")+'"></div>'+
+      segControl("eqa-"+it[0], AVAIL2, data.avail) +
+      segControl("eqc-"+it[0], COND2, data.cond) +
+      '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="eq-'+it[0]+'-notes" value="'+esc(data.notes||"")+'"></div>'+
+    '</div></div>';
+}
+
+function extraItemsHTML(list){
+  if(!list.length) return '<p class="hint" style="margin-bottom:10px">'+bi("لا توجد معدات إضافية بعد","No additional equipment yet")+'</p>';
+  return list.map(function(item,i){
+    return '<div class="item-card" data-extra="'+i+'">'+
+      '<div class="item-row">'+
+        '<div class="notes" style="flex:1 1 200px"><label style="display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-bottom:3px">'+("اسم المعدة / Name")+'</label><input type="text" id="ex-'+i+'-name" value="'+esc(item.name||"")+'"></div>'+
+        '<div class="mini"><label>'+("مطلوبة / Req.")+'</label><input type="number" id="ex-'+i+'-req" value="'+esc(item.req||"")+'"></div>'+
+        '<div class="mini"><label>'+("موجودة / Have")+'</label><input type="number" id="ex-'+i+'-have" value="'+esc(item.have||"")+'"></div>'+
+        segControl("exa-"+i, AVAIL2, item.avail) +
+        segControl("exc-"+i, COND2, item.cond) +
+        '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="ex-'+i+'-notes" value="'+esc(item.notes||"")+'"></div>'+
+        '<button type="button" class="item-remove" data-removeextra="'+i+'">✕ '+("حذف")+'</button>'+
+      '</div></div>';
+  }).join("");
+}
+
+function readinessItemHTML(it,idx,val){
+  return '<div class="item-card" data-item="'+it[0]+'">'+
+    '<div class="item-head"><span class="item-idx">'+idx+'</span>'+
+      '<div class="item-name"><b>'+esc(it[1])+'</b><span class="en">'+esc(it[2])+'</span></div></div>'+
+    segControl("rdy-"+it[0], READY3, val)+
+  '</div>';
+}
+
+function wireEquipmentForm(){
+  on(qs("#clearEDraft"),"click",function(){
+    equipmentDraft = freshEquipmentDraft(); equipmentDraftRestored=false; safeLocalDel("ps_equipment_draft_v1");
+    renderTab(); showToast("تم مسح المسودة","Draft cleared");
+  });
+
+  var map = [
+    ["eCode","vehicleCode"],["ePlate","plate"],["eCity","city"],["eTech","driverTech"],
+    ["eSup","supervisorName"],["eDate","date"],["eOdo","odometer"],
+    ["eMissing","missingNotes"],["eMaint","maintenanceNotes"],["eAction","requiredAction"],
+    ["eTechName","technicianName"]
+  ];
+  map.forEach(function(pair){
+    var el = qs("#"+pair[0]);
+    on(el,"input",function(){ equipmentDraft[pair[1]] = el.value; if(pair[1]==="supervisorName"){var o=qs("#eSupName2"); if(o) o.value=el.value;} saveEquipmentDraft(); });
+    on(el,"change",function(){ equipmentDraft[pair[1]] = el.value; saveEquipmentDraft(); });
+  });
+  on(qs("#eSupName2"),"input",function(){ equipmentDraft.supervisorName = qs("#eSupName2").value; var o=qs("#eSup"); if(o) o.value=qs("#eSupName2").value; saveEquipmentDraft(); });
+  on(qs("#eCode"),"change",function(){
+    var code = qs("#eCode").value;
+    if(code==="__custom__") return;
+    var v = state.vehicles.filter(function(x){return x.code===code;})[0];
+    if(v){ qs("#eCity").value=v.city||""; equipmentDraft.city=v.city||""; qs("#ePlate").value=v.plate||""; equipmentDraft.plate=v.plate||""; saveEquipmentDraft(); }
+  });
+  on(qs("#eCustomCode"),"input",function(){ equipmentDraft.vehicleCode = qs("#eCustomCode").value; saveEquipmentDraft(); });
+
+  qsa("#eqItems .mini input, #eqItems .notes input").forEach(function(inp){
+    on(inp,"input",function(){
+      var m = inp.id.match(/^eq-(.+)-(req|have|notes)$/);
+      if(!m) return;
+      var itemId=m[1], field=m[2];
+      equipmentDraft.items[itemId] = equipmentDraft.items[itemId] || {req:"",have:"",avail:"",cond:"",notes:""};
+      equipmentDraft.items[itemId][field] = inp.value;
+      saveEquipmentDraft();
+    });
+  });
+  wireSegControls(qs("#eqItems"), function(group,val){
+    var m = group.match(/^(eqa|eqc)-(.+)$/);
+    if(!m) return;
+    var itemId = m[2], field = m[1]==="eqa" ? "avail":"cond";
+    equipmentDraft.items[itemId] = equipmentDraft.items[itemId] || {req:"",have:"",avail:"",cond:"",notes:""};
+    equipmentDraft.items[itemId][field] = val;
+    saveEquipmentDraft();
+  });
+
+  function wireExtraRows(){
+    qsa("#extraItems .mini input, #extraItems .notes input").forEach(function(inp){
+      on(inp,"input",function(){
+        var m = inp.id.match(/^ex-(\d+)-(name|req|have|notes)$/);
+        if(!m) return;
+        var i=+m[1], field=m[2];
+        equipmentDraft.extraItems[i] = equipmentDraft.extraItems[i] || {};
+        equipmentDraft.extraItems[i][field] = inp.value;
+        saveEquipmentDraft();
+      });
+    });
+    wireSegControls(qs("#extraItems"), function(group,val){
+      var m = group.match(/^(exa|exc)-(\d+)$/);
+      if(!m) return;
+      var i=+m[2], field = m[1]==="exa" ? "avail":"cond";
+      equipmentDraft.extraItems[i] = equipmentDraft.extraItems[i] || {};
+      equipmentDraft.extraItems[i][field] = val;
+      saveEquipmentDraft();
+    });
+    qsa("[data-removeextra]").forEach(function(b){
+      on(b,"click",function(){
+        var i = +b.getAttribute("data-removeextra");
+        equipmentDraft.extraItems.splice(i,1);
+        saveEquipmentDraft();
+        qs("#extraItems").innerHTML = extraItemsHTML(equipmentDraft.extraItems) + '<button class="btn btn-outline btn-sm" id="addExtra" type="button">'+bi("+ إضافة معدة","+ Add Equipment")+'</button>';
+        on(qs("#addExtra"),"click",addExtraRow);
+        wireExtraRows();
+      });
+    });
+  }
+  function addExtraRow(){
+    equipmentDraft.extraItems.push({name:"",req:"",have:"",avail:"",cond:"",notes:""});
+    saveEquipmentDraft();
+    qs("#extraItems").innerHTML = extraItemsHTML(equipmentDraft.extraItems) + '<button class="btn btn-outline btn-sm" id="addExtra" type="button">'+bi("+ إضافة معدة","+ Add Equipment")+'</button>';
+    on(qs("#addExtra"),"click",addExtraRow);
+    wireExtraRows();
+  }
+  on(qs("#addExtra"),"click",addExtraRow);
+  wireExtraRows();
+
+  wireSegControls(qs("#readinessList"), function(group,val){
+    var itemId = group.replace(/^rdy-/,"");
+    equipmentDraft.readiness[itemId] = val;
+    saveEquipmentDraft();
+  });
+  wireSegControls(qs("#main"), function(group,val){
+    if(group==="eEval"){ equipmentDraft.finalEvaluation = val; saveEquipmentDraft(); }
+  });
+
+  on(qs("#eSubmit"),"click",submitEquipmentReport);
+  on(qs("#eReset"),"click",function(){
+    equipmentDraft = freshEquipmentDraft(); safeLocalDel("ps_equipment_draft_v1"); equipmentDraftRestored=false;
+    renderTab();
+  });
+}
+
+async function submitEquipmentReport(){
+  var d = equipmentDraft;
+  var code = (d.vehicleCode==="__custom__" ? "" : d.vehicleCode) || qs("#eCustomCode").value;
+  code = (code||"").trim();
+  if(!code){ showToast("يرجى اختيار أو إدخال كود المركبة","Please select or enter a vehicle code"); return; }
+  if(!d.date){ showToast("يرجى تحديد التاريخ","Please set the date"); return; }
+  if(!d.supervisorName || !d.supervisorName.trim()){ showToast("يرجى إدخال اسم المشرف","Please enter the supervisor name"); return; }
+  if(!state.dbns){ showToast("قاعدة البيانات غير متاحة حاليًا","Database unavailable right now"); return; }
+
+  var btn = qs("#eSubmit"); if(btn){ btn.disabled = true; btn.textContent = "جارٍ الإرسال… Sending…"; }
+  var payload = {
+    vehicleCode: code, plate:d.plate||"", city:d.city||"", driverTech:d.driverTech||"",
+    supervisorName:d.supervisorName||"", date:d.date, odometer:d.odometer||"",
+    items: d.items, extraItems: d.extraItems||[], readiness: d.readiness,
+    missingNotes:d.missingNotes||"", maintenanceNotes:d.maintenanceNotes||"", requiredAction:d.requiredAction||"",
+    finalEvaluation:d.finalEvaluation||"", technicianName:d.technicianName||"",
+    createdAt: new Date().toISOString(), createdBy: state.myId
+  };
+  try{
+    await state.dbns.collection("equipment_reports").add(payload);
+    showToast("تم إرسال التقرير بنجاح","Report submitted successfully");
+    equipmentDraft = freshEquipmentDraft(); equipmentDraftRestored=false; safeLocalDel("ps_equipment_draft_v1");
+    state.tab="dashboard"; location.hash="dashboard"; renderTabbar(); renderTab();
+  }catch(e){
+    showToast("تعذر إرسال التقرير، حاول مجددًا","Could not submit report, try again");
+    if(btn){ btn.disabled=false; btn.innerHTML = bi("إرسال التقرير","Submit Report"); }
+  }
+}
+
+/* ========================================================================
+   HISTORY
+   ======================================================================== */
+function historyHTML(){
+  var vehOpts = '<option value="">'+("كل المركبات / All Vehicles")+'</option>'+
+    state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'">'+esc(v.code)+'</option>';}).join("");
+  return '<div class="section-bar">'+bi("سجل التقارير","Report History")+'</div>'+
+    '<div class="filters">'+
+      '<select id="hfVeh">'+vehOpts+'</select>'+
+      '<select id="hfType"><option value="">'+("كل الأنواع / All Types")+'</option><option value="vehicle">'+("مركبة / Vehicle")+'</option><option value="equipment">'+("معدات / Equipment")+'</option></select>'+
+    '</div>'+
+    '<div id="histList"></div>';
+}
+
+function historyRowHTML(type,r){
+  var icon = type==="vehicle" ? "🚐" : "🧰";
+  var title = (r.vehicleCode||"—") + " — " + (type==="vehicle" ? "فحص مركبة / Vehicle Check" : "فحص معدات / Equipment Check");
+  var evalTable = type==="vehicle" ? VEHICLE_EVAL : EQUIP_EVAL;
+  var evalCode = type==="vehicle" ? r.evaluation : r.finalEvaluation;
+  var badge = evalFromCodeBadge(evalCode, evalTable);
+  var dateTxt = fmtDate((r.createdAt||"").slice(0,10));
+  return '<div class="hist-row" data-id="'+esc(r.id)+'" data-type="'+type+'">'+
+    '<div class="hist-icon">'+icon+'</div>'+
+    '<div class="hist-main"><div class="t1">'+esc(title)+'</div><div class="t2">'+esc(dateTxt)+'</div></div>'+
+    badge+
+  '</div>';
+}
+
+function renderHistList(){
+  var vehF = qs("#hfVeh") ? qs("#hfVeh").value : "";
+  var typeF = qs("#hfType") ? qs("#hfType").value : "";
+  var rows = state.vReports.map(function(r){return {type:"vehicle",r:r};})
+    .concat(state.eReports.map(function(r){return {type:"equipment",r:r};}));
+  rows = rows.filter(function(x){
+    if(vehF && x.r.vehicleCode!==vehF) return false;
+    if(typeF && x.type!==typeF) return false;
+    return true;
+  }).sort(function(a,b){ return (b.r.createdAt||"") > (a.r.createdAt||"") ? 1 : -1; });
+  var host = qs("#histList");
+  if(!host) return;
+  host.innerHTML = rows.length ? rows.map(function(x){return historyRowHTML(x.type,x.r);}).join("") :
+    '<div class="empty-state">'+bi("لا توجد نتائج مطابقة","No matching results")+'</div>';
+  qsa(".hist-row",host).forEach(function(row){ on(row,"click",function(){ openDetailFromRow(row); }); });
+}
+
+function wireHistory(){
+  on(qs("#hfVeh"),"change",renderHistList);
+  on(qs("#hfType"),"change",renderHistList);
+  renderHistList();
+}
+
+function openDetailFromRow(row){
+  var id = row.getAttribute("data-id"), type = row.getAttribute("data-type");
+  var list = type==="vehicle" ? state.vReports : state.eReports;
+  var r = list.filter(function(x){return x.id===id;})[0];
+  if(!r) return;
+  openOverlay(type,r);
+}
+
+/* ========================================================================
+   DETAIL OVERLAY
+   ======================================================================== */
+async function openOverlay(type, r){
+  var submitter = r.supervisorName || "—";
+  var html = buildDetailHTML(type, r, submitter);
+  var div = document.createElement("div");
+  div.className = "overlay";
+  div.id = "detailOverlay";
+  div.innerHTML = '<div class="overlay-panel">'+
+    '<div class="overlay-head"><button class="overlay-close" id="closeOverlay">✕</button>'+
+      '<div style="font-weight:800">'+bi(type==="vehicle"?"تقرير مركبة":"تقرير معدات", type==="vehicle"?"Vehicle Report":"Equipment Report")+'</div>'+
+    '</div>'+html+
+    '<div class="btn-row" style="margin-top:14px">'+
+      '<button class="btn btn-leaf btn-sm" id="exportPdfBtn">'+bi("تنزيل PDF","Download PDF")+'</button>'+
+      '<button class="btn btn-outline btn-sm" id="exportCsvBtn">'+bi("تنزيل Excel (CSV)","Download Excel (CSV)")+'</button>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(div);
+  on(qs("#closeOverlay",div),"click",function(){ div.remove(); });
+  on(div,"click",function(e){ if(e.target===div) div.remove(); });
+  on(qs("#exportPdfBtn",div),"click",function(){ exportReportPDF(type,r,submitter); });
+  on(qs("#exportCsvBtn",div),"click",function(){ exportReportCSV(type,r,submitter); });
+}
+
+function kvi(ar,en,val){
+  return '<div class="kvi"><div class="k">'+bi(ar,en)+'</div><div class="v">'+esc(val||"—")+'</div></div>';
+}
+
+function buildDetailHTML(type, r, submitter){
+  var out = '<div class="kv">'+
+    kvi("كود المركبة","Vehicle Code", r.vehicleCode)+
+    kvi("التاريخ","Date", fmtDate((type==="vehicle"?r.inspectionDate:r.date)))+
+    kvi("المشرف","Supervisor", r.supervisorName)+
+    kvi("أُرسل بواسطة","Submitted By", submitter)+
+  '</div>';
+
+  if(type==="vehicle"){
+    out += '<div class="kv">'+
+      kvi("المدينة","City", r.city)+kvi("نوع المركبة","Type", r.vehicleType)+
+      kvi("رقم اللوحة","Plate", r.plate)+kvi("العداد","Odometer", r.odometer)+
+    '</div>';
+    out += '<table class="rep-table"><thead><tr><th>'+("البند / Item")+'</th><th>'+("الحالة / Status")+'</th><th>'+("ملاحظات / Notes")+'</th></tr></thead><tbody>'+
+      VEHICLE_CHECK_ITEMS.map(function(it){
+        var c = (r.checklist||{})[it[0]]||{};
+        var tone = TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
+        return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+(tone?'<span class="badge '+tone[3]+'">'+esc(tone[1])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>';
+      }).join("")+
+    '</tbody></table>';
+    var photoKeys = Object.keys(r.photos||{});
+    if(photoKeys.length){
+      out += '<div class="section-bar" style="margin-top:12px">'+bi("الصور","Photos")+'</div><div class="thumb-row">'+
+        photoKeys.map(function(k){ var p=r.photos[k]; var src=(p&&p.url)?p.url:""; return src?('<img src="'+esc(src)+'" alt="'+esc(k)+'">'):""; }).join("")+
+      '</div>';
+    }
+    out += '<div class="kv" style="margin-top:12px">'+kvi("انتهاء الاستمارة","Registration Exp.",fmtDate(r.estemaraExpiry))+kvi("انتهاء التأمين","Insurance Exp.",fmtDate(r.insuranceExpiry))+kvi("انتهاء الفحص","Inspection Exp.",fmtDate(r.fahsExpiry))+'</div>';
+    var ev = VEHICLE_EVAL.filter(function(e){return e[0]===r.evaluation;})[0];
+    out += '<p>'+bi("التقييم العام","Overall Evaluation")+' '+(ev?'<span class="badge '+ev[3]+'">'+esc(ev[1])+'</span>':"—")+'</p>';
+    if(r.faults) out += '<p><b>'+bi("الأعطال / الملاحظات","Faults / Remarks")+'</b><br>'+esc(r.faults)+'</p>';
+    if(r.requiredAction) out += '<p><b>'+bi("الإجراء المطلوب","Required Action")+'</b><br>'+esc(r.requiredAction)+'</p>';
+  } else {
+    out += '<table class="rep-table"><thead><tr><th>'+("المعدة / Equipment")+'</th><th>'+("مطلوبة/موجودة")+'</th><th>'+("التوفر / Availability")+'</th><th>'+("الحالة / Condition")+'</th><th>'+("ملاحظات / Notes")+'</th></tr></thead><tbody>'+
+      EQUIPMENT_ITEMS.map(function(it){
+        var c = (r.items||{})[it[0]]||{};
+        var at = AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
+        var ct = COND2.filter(function(t){return t[0]===c.cond;})[0];
+        return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+esc(c.req||"-")+' / '+esc(c.have||"-")+'</td><td>'+(at?'<span class="badge '+at[3]+'">'+esc(at[1])+'</span>':"—")+'</td><td>'+(ct?'<span class="badge '+ct[3]+'">'+esc(ct[1])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>';
+      }).join("")+
+      (r.extraItems||[]).map(function(c){
+        var at = AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
+        var ct = COND2.filter(function(t){return t[0]===c.cond;})[0];
+        return '<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.req||"-")+' / '+esc(c.have||"-")+'</td><td>'+(at?'<span class="badge '+at[3]+'">'+esc(at[1])+'</span>':"—")+'</td><td>'+(ct?'<span class="badge '+ct[3]+'">'+esc(ct[1])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>';
+      }).join("")+
+    '</tbody></table>';
+    out += '<div class="section-bar" style="margin-top:12px">'+bi("حالة ترتيب وتجهيز السيارة","Vehicle Readiness")+'</div>';
+    out += '<table class="rep-table"><tbody>'+READINESS_ITEMS.map(function(it){
+      var v = (r.readiness||{})[it[0]];
+      var rt = READY3.filter(function(t){return t[0]===v;})[0];
+      return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+(rt?'<span class="badge '+rt[3]+'">'+esc(rt[1])+'</span>':"—")+'</td></tr>';
+    }).join("")+'</tbody></table>';
+    var ev = EQUIP_EVAL.filter(function(e){return e[0]===r.finalEvaluation;})[0];
+    out += '<p style="margin-top:10px">'+bi("التقييم النهائي","Final Evaluation")+' '+(ev?'<span class="badge '+ev[3]+'">'+esc(ev[1])+'</span>':"—")+'</p>';
+    if(r.missingNotes) out += '<p><b>'+bi("المعدات الناقصة","Missing Equipment")+'</b><br>'+esc(r.missingNotes)+'</p>';
+    if(r.maintenanceNotes) out += '<p><b>'+bi("المعدات التي تحتاج صيانة","Needs Maintenance")+'</b><br>'+esc(r.maintenanceNotes)+'</p>';
+    if(r.requiredAction) out += '<p><b>'+bi("الإجراء المطلوب","Required Action")+'</b><br>'+esc(r.requiredAction)+'</p>';
+  }
+  return out;
+}
+
+/* ========================================================================
+   EXPORTS: CSV (Excel) + PDF (via off-screen print sheet -> html2canvas -> jsPDF)
+   ======================================================================== */
+function csvEscape(v){
+  v = (v===undefined||v===null) ? "" : String(v);
+  if(/[",\n]/.test(v)) return '"'+v.replace(/"/g,'""')+'"';
+  return v;
+}
+function toCSV(rows){
+  return "﻿" + rows.map(function(row){ return row.map(csvEscape).join(","); }).join("\r\n");
+}
+
+function saveFile(filename, blobOrStr, mime){
+  try{
+    var data = blobOrStr;
+    if(typeof blobOrStr === "string"){ data = new Blob([blobOrStr], {type:mime||"text/plain"}); }
+    var url = URL.createObjectURL(data);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); URL.revokeObjectURL(url); }, 1500);
+    showToast("تم الحفظ","Saved");
+  }catch(e){
+    showToast("تعذر إنشاء الملف","Could not create the file");
+  }
+}
+
+function exportReportCSV(type, r, submitter){
+  var rows = [];
+  rows.push(["كود المركبة / Vehicle Code", r.vehicleCode||""]);
+  rows.push(["التاريخ / Date", type==="vehicle"?r.inspectionDate:r.date]);
+  rows.push(["المشرف / Supervisor", r.supervisorName||""]);
+  rows.push(["أُرسل بواسطة / Submitted By", submitter||""]);
+  rows.push([]);
+  if(type==="vehicle"){
+    rows.push(["البند / Item","الحالة / Status","ملاحظات / Notes"]);
+    VEHICLE_CHECK_ITEMS.forEach(function(it){
+      var c=(r.checklist||{})[it[0]]||{};
+      var tone = TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
+      rows.push([it[1]+" / "+it[2], tone?tone[1]+" / "+tone[2]:"", c.notes||""]);
+    });
+    rows.push([]);
+    rows.push(["انتهاء الاستمارة / Registration Exp.", r.estemaraExpiry||""]);
+    rows.push(["انتهاء التأمين / Insurance Exp.", r.insuranceExpiry||""]);
+    rows.push(["انتهاء الفحص / Inspection Exp.", r.fahsExpiry||""]);
+    var ev = VEHICLE_EVAL.filter(function(e){return e[0]===r.evaluation;})[0];
+    rows.push(["التقييم العام / Overall Evaluation", ev?ev[1]+" / "+ev[2]:""]);
+    rows.push(["الأعطال / الملاحظات", r.faults||""]);
+    rows.push(["الإجراء المطلوب / Required Action", r.requiredAction||""]);
+  } else {
+    rows.push(["المعدة / Equipment","مطلوبة / Req.","موجودة / Have","التوفر / Availability","الحالة / Condition","ملاحظات / Notes"]);
+    EQUIPMENT_ITEMS.forEach(function(it){
+      var c=(r.items||{})[it[0]]||{};
+      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
+      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
+      rows.push([it[1]+" / "+it[2], c.req||"", c.have||"", at?at[1]+"/"+at[2]:"", ct?ct[1]+"/"+ct[2]:"", c.notes||""]);
+    });
+    (r.extraItems||[]).forEach(function(c){
+      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
+      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
+      rows.push([c.name||"", c.req||"", c.have||"", at?at[1]+"/"+at[2]:"", ct?ct[1]+"/"+ct[2]:"", c.notes||""]);
+    });
+    rows.push([]);
+    rows.push(["البند / Readiness Item","الحالة / Status"]);
+    READINESS_ITEMS.forEach(function(it){
+      var v=(r.readiness||{})[it[0]];
+      var rt=READY3.filter(function(t){return t[0]===v;})[0];
+      rows.push([it[1]+" / "+it[2], rt?rt[1]+"/"+rt[2]:""]);
+    });
+    var ev = EQUIP_EVAL.filter(function(e){return e[0]===r.finalEvaluation;})[0];
+    rows.push([]);
+    rows.push(["التقييم النهائي / Final Evaluation", ev?ev[1]+" / "+ev[2]:""]);
+    rows.push(["المعدات الناقصة / Missing", r.missingNotes||""]);
+    rows.push(["تحتاج صيانة / Needs Maintenance", r.maintenanceNotes||""]);
+    rows.push(["الإجراء المطلوب / Required Action", r.requiredAction||""]);
+  }
+  var csv = toCSV(rows);
+  var fname = (type==="vehicle"?"vehicle-report-":"equipment-report-")+(r.vehicleCode||"x")+"-"+(type==="vehicle"?r.inspectionDate:r.date)+".csv";
+  saveFile(fname, csv, "text/csv");
+}
+
+function buildPrintSheet(type, r, submitter){
+  var wrap = document.createElement("div");
+  wrap.style.cssText = "position:fixed; top:0; left:-10000px; width:794px; background:#ffffff; color:#16201a; direction:rtl; font-family:'IBM Plex Sans Arabic','Cairo',sans-serif; padding:28px;";
+  var headRow =
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr>'+
+      '<td style="width:80px;vertical-align:middle"><img src="'+LOGO_DATA_URL+'" style="height:56px"></td>'+
+      '<td style="text-align:center;vertical-align:middle">'+
+        '<div style="font-weight:800;font-size:12px;color:#2F6690">مؤسسة خطوة محترف للتشغيل والصيانة ومكافحة الآفات / Professional Step</div>'+
+        '<div style="font-weight:800;font-size:19px;margin-top:3px">'+(type==="vehicle"?"نموذج الفحص والمتابعة الدورية للمركبة":"نموذج جرد وفحص معدات المركبة")+'</div>'+
+        '<div style="font-size:11px;color:#5B6B60">'+(type==="vehicle"?"Vehicle Periodic Inspection &amp; Maintenance Form":"Pest Control Vehicle Equipment Checklist")+'</div>'+
+      '</td>'+
+      '<td style="width:120px;font-size:9.5px;color:#5B6B60;text-align:start">'+
+        'كود المركبة / Vehicle: '+esc(r.vehicleCode||"")+'<br>التاريخ / Date: '+esc(type==="vehicle"?r.inspectionDate:r.date)+
+      '</td>'+
+    '</tr></table>';
+
+  function sectionBar(ar,en){ return '<div style="background:#2F6690;color:#fff;font-weight:800;border-radius:7px;padding:6px 10px;margin:12px 0 8px;font-size:12.5px">'+esc(ar)+' <span style="opacity:.85;font-weight:600;font-size:10px">'+esc(en)+'</span></div>'; }
+  function kvTable(pairs){
+    var cells = pairs.map(function(p){
+      return '<td style="border:1px solid #D7E2D2;padding:6px 8px;font-size:10.5px;width:25%"><div style="color:#5B6B60;font-size:9px;font-weight:700">'+esc(p[0])+'</div><div style="font-weight:700">'+esc(p[1]||"—")+'</div></td>';
+    });
+    var rows=''; for(var i=0;i<cells.length;i+=4){ rows += '<tr>'+cells.slice(i,i+4).join("")+'</tr>'; }
+    return '<table style="width:100%;border-collapse:collapse">'+rows+'</table>';
+  }
+
+  var body = headRow;
+  if(type==="vehicle"){
+    body += sectionBar("بيانات المركبة والفحص","Vehicle & Inspection Data");
+    body += kvTable([
+      ["المدينة / City", r.city],["نوع المركبة / Type", r.vehicleType],["رقم اللوحة / Plate", r.plate],["الوقود / Fuel", r.fuel],
+      ["السائق / Driver", r.driverName],["العداد / Odometer", r.odometer],["المشرف / Supervisor", r.supervisorName],["أُرسل بواسطة / By", submitter]
+    ]);
+    body += sectionBar("جدول الفحص الفني","Technical Inspection");
+    var tr = '<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:6px"><thead><tr>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:5px">م</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:5px;text-align:start">البند / Item</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:5px">الحالة</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:5px;text-align:start">ملاحظات</th></tr></thead><tbody>';
+    VEHICLE_CHECK_ITEMS.forEach(function(it,i){
+      var c=(r.checklist||{})[it[0]]||{};
+      var tone=TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
+      var col = tone? (tone[0]==="sound"?"#2E8B57":tone[0]==="followup"?"#B07A1C":"#C1402E") : "#999";
+      tr += '<tr><td style="border:1px solid #D7E2D2;padding:4px;text-align:center">'+(i+1)+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:4px">'+esc(it[1])+' / '+esc(it[2])+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:4px;text-align:center;color:'+col+';font-weight:700">'+(tone?esc(tone[1]):"—")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:4px">'+esc(c.notes||"")+'</td></tr>';
+    });
+    tr += '</tbody></table>';
+    body += tr;
+    body += sectionBar("تواريخ الوثائق والتقييم","Document Dates & Evaluation");
+    var ev = VEHICLE_EVAL.filter(function(e){return e[0]===r.evaluation;})[0];
+    body += kvTable([
+      ["انتهاء الاستمارة", fmtDate(r.estemaraExpiry)],["انتهاء التأمين", fmtDate(r.insuranceExpiry)],
+      ["انتهاء الفحص", fmtDate(r.fahsExpiry)],["التقييم العام", ev?ev[1]:"—"]
+    ]);
+    if(r.faults) body += '<p style="font-size:10.5px;margin-top:8px"><b>الأعطال / الملاحظات:</b> '+esc(r.faults)+'</p>';
+    if(r.requiredAction) body += '<p style="font-size:10.5px"><b>الإجراء المطلوب:</b> '+esc(r.requiredAction)+'</p>';
+  } else {
+    body += sectionBar("بيانات المركبة والفريق","Vehicle & Team Data");
+    body += kvTable([
+      ["المدينة / City", r.city],["رقم اللوحة / Plate", r.plate],["السائق/الفني", r.driverTech],
+      ["المشرف / Supervisor", r.supervisorName],["العداد / Odometer", r.odometer],["أُرسل بواسطة / By", submitter]
+    ]);
+    body += sectionBar("جرد وفحص المعدات","Equipment Inventory");
+    var tr2 = '<table style="width:100%;border-collapse:collapse;font-size:9.5px;margin-top:6px"><thead><tr>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">م</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px;text-align:start">المعدة</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">مطلوبة/موجودة</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">التوفر</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">الحالة</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px;text-align:start">ملاحظات</th></tr></thead><tbody>';
+    var idx=1;
+    EQUIPMENT_ITEMS.forEach(function(it){
+      var c=(r.items||{})[it[0]]||{};
+      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
+      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
+      tr2 += '<tr><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(idx++)+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(it[1])+' / '+esc(it[2])+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+esc(c.req||"-")+'/'+esc(c.have||"-")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(at?esc(at[1]):"—")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(ct?esc(ct[1]):"—")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.notes||"")+'</td></tr>';
+    });
+    (r.extraItems||[]).forEach(function(c){
+      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
+      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
+      tr2 += '<tr><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(idx++)+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.name||"")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+esc(c.req||"-")+'/'+esc(c.have||"-")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(at?esc(at[1]):"—")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(ct?esc(ct[1]):"—")+'</td>'+
+        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.notes||"")+'</td></tr>';
+    });
+    tr2 += '</tbody></table>';
+    body += tr2;
+    body += sectionBar("حالة ترتيب وتجهيز السيارة","Vehicle Readiness");
+    var tr3 = '<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px"><tbody>';
+    READINESS_ITEMS.forEach(function(it){
+      var v=(r.readiness||{})[it[0]];
+      var rt=READY3.filter(function(t){return t[0]===v;})[0];
+      tr3 += '<tr><td style="border:1px solid #D7E2D2;padding:4px">'+esc(it[1])+' / '+esc(it[2])+'</td><td style="border:1px solid #D7E2D2;padding:4px;text-align:center;width:120px">'+(rt?esc(rt[1]):"—")+'</td></tr>';
+    });
+    tr3 += '</tbody></table>';
+    body += tr3;
+    var ev2 = EQUIP_EVAL.filter(function(e){return e[0]===r.finalEvaluation;})[0];
+    body += '<p style="font-size:10.5px;margin-top:8px"><b>التقييم النهائي:</b> '+(ev2?esc(ev2[1]):"—")+'</p>';
+    if(r.missingNotes) body += '<p style="font-size:10.5px"><b>المعدات الناقصة:</b> '+esc(r.missingNotes)+'</p>';
+    if(r.maintenanceNotes) body += '<p style="font-size:10.5px"><b>تحتاج صيانة:</b> '+esc(r.maintenanceNotes)+'</p>';
+    if(r.requiredAction) body += '<p style="font-size:10.5px"><b>الإجراء المطلوب:</b> '+esc(r.requiredAction)+'</p>';
+  }
+  body += '<div style="margin-top:16px;font-size:9px;color:#8a978e;border-top:1px solid #D7E2D2;padding-top:6px">مؤسسة خطوة محترف — نظام داخلي / Professional Step — Internal System</div>';
+  wrap.innerHTML = body;
+  document.body.appendChild(wrap);
+  return wrap;
+}
+
+async function exportReportPDF(type, r, submitter){
+  if(!window.html2canvas || !window.jspdf){
+    showToast("تعذر تحميل أداة PDF، حاول لاحقًا","PDF tool failed to load, try again later");
+    return;
+  }
+  showToast("جارٍ إنشاء ملف PDF…","Generating PDF…");
+  var sheet = buildPrintSheet(type, r, submitter);
+  try{
+    var canvas = await window.html2canvas(sheet, {scale:2, backgroundColor:"#ffffff", useCORS:true});
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var pdf = new jsPDFCtor({unit:"pt", format:"a4"});
+    var pageW = pdf.internal.pageSize.getWidth();
+    var pageH = pdf.internal.pageSize.getHeight();
+    var imgW = pageW;
+    var imgH = canvas.height * (imgW / canvas.width);
+    var heightLeft = imgH, position = 0, first = true;
+    var pageCanvasH = pageH * (canvas.width / imgW);
+    while(heightLeft > 0){
+      var sliceH = Math.min(pageCanvasH, canvas.width>0 ? (canvas.height - position*(canvas.width/imgW)) : 0);
+      var sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = Math.min(pageCanvasH, canvas.height - (canvas.height - heightLeft*(canvas.width/imgW)));
+      var srcY = canvas.height - heightLeft*(canvas.width/imgW);
+      sliceCanvas.height = Math.min(pageCanvasH, canvas.height - srcY);
+      var ctx = sliceCanvas.getContext("2d");
+      ctx.drawImage(canvas, 0, srcY, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+      var sliceImgH = sliceCanvas.height * (imgW / canvas.width);
+      if(!first) pdf.addPage();
+      pdf.addImage(sliceCanvas.toDataURL("image/jpeg",0.92), "JPEG", 0, 0, imgW, sliceImgH);
+      heightLeft -= sliceImgH;
+      first = false;
+    }
+    var blob = pdf.output("blob");
+    var fname = (type==="vehicle"?"vehicle-report-":"equipment-report-")+(r.vehicleCode||"x")+"-"+(type==="vehicle"?r.inspectionDate:r.date)+".pdf";
+    await saveFile(fname, blob);
+  }catch(e){
+    showToast("تعذر إنشاء ملف PDF","Could not generate the PDF");
+  }finally{
+    sheet.remove();
+  }
+}
+
+/* ========================================================================
+   DATA INIT: capabilities + subscriptions
+   ======================================================================== */
+function initCapabilities(){
+  try{
+    if(!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.indexOf("YOUR_")===0){
+      state.dbns = null;
+    } else {
+      if(!firebase.apps || !firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
+      state.dbns = firebase.firestore();
+    }
+  }catch(e){ state.dbns = null; }
+  state.assetsns = null; state.downloadsns = null; state.userns = null; state.myId = null;
+
+  var badge = qs("#connBadge");
+  if(badge){
+    if(state.dbns) badge.innerHTML = bi("متصل","Connected");
+    else badge.innerHTML = bi("وضع القراءة فقط","Read-only mode");
+  }
+
+  if(!state.dbns){ state.vehiclesLoaded = true; state.reportsLoaded = true; renderTab(); return; }
+
+  state.dbns.collection("vehicles").onSnapshot(function(snap){
+    state.vehicles = snap.docs.map(function(d){ var b=d.data()||{}; b.code=d.id; return b; })
+      .filter(function(v){ return v.active!==false; })
+      .sort(function(a,b){ return (a.code||"").localeCompare(b.code||""); });
+    state.vehiclesLoaded = true;
+    if(state.tab==="dashboard"||state.tab==="history") renderTab();
+    else refreshCodeSelectsOnly();
+  }, function(){ state.vehiclesLoaded = true; });
+
+  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){
+    state.vReports = snap.docs.map(function(d){ var b=d.data()||{}; b.id=d.id; return b; });
+    state.reportsLoaded = true;
+    if(state.tab==="dashboard"||state.tab==="history") renderTab();
+  }, function(){ state.reportsLoaded = true; });
+
+  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){
+    state.eReports = snap.docs.map(function(d){ var b=d.data()||{}; b.id=d.id; return b; });
+    if(state.tab==="dashboard"||state.tab==="history") renderTab();
+  }, function(){});
+}
+
+function refreshCodeSelectsOnly(){
+  var vSel = qs("#vCode"), eSel = qs("#eCode");
+  if(vSel){ var cur=vehicleDraft.vehicleCode; vSel.innerHTML = vehicleCodeOptions(cur); }
+  if(eSel){ var cur2=equipmentDraft.vehicleCode; eSel.innerHTML = vehicleCodeOptions(cur2); }
+}
+
+/* ========================================================================
+   BOOT
+   ======================================================================== */
+function boot(){
+  var hash = (location.hash||"").replace("#","");
+  if(TABS.some(function(t){return t[0]===hash;})) state.tab = hash;
+  renderShell();
+  initCapabilities();
+}
+if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded", boot); } else { boot(); }
+
+})();
+
+</script>
+</body>
+</html>
