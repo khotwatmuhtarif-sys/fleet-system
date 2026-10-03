@@ -771,15 +771,23 @@ function wireDashboard(){
   qsa("[data-delveh]").forEach(function(b){ on(b,"click",async function(){
     if(!state.currentProfile || state.currentProfile.role!=="admin") return;
     var code=b.getAttribute("data-delveh");
-    if(!confirm("حذف المركبة "+code+"؟ سيتم فك ربطها من حسابات الفنيين، ولن تُحذف التقارير القديمة.")) return;
+    if(!confirm("حذف المركبة "+code+" نهائيًا؟ سيتم حذف المركبة وجميع تقاريرها وفك ربطها من الحسابات. / Permanently delete this vehicle and all its reports?")) return;
     try{
-      var batch=state.dbns.batch();
-      batch.delete(state.dbns.collection("vehicles").doc(code));
+      var refs=[];
+      refs.push({ref:state.dbns.collection("vehicles").doc(code),type:"delete"});
       var us=await state.dbns.collection("users").where("vehicleCode","==",code).get();
-      us.forEach(function(d){ batch.update(d.ref,{vehicleCode:null}); });
-      await batch.commit();
-      showToast("تم حذف المركبة وفك ربطها من الحسابات","Vehicle deleted and unassigned");
-    }catch(e){ showToast("تعذر حذف المركبة","Could not delete vehicle"); }
+      us.forEach(function(d){ refs.push({ref:d.ref,type:"update"}); });
+      var vr=await state.dbns.collection("vehicle_reports").where("vehicleCode","==",code).get();
+      vr.forEach(function(d){ refs.push({ref:d.ref,type:"delete"}); });
+      var er=await state.dbns.collection("equipment_reports").where("vehicleCode","==",code).get();
+      er.forEach(function(d){ refs.push({ref:d.ref,type:"delete"}); });
+      for(var i=0;i<refs.length;i+=450){
+        var batch=state.dbns.batch();
+        refs.slice(i,i+450).forEach(function(x){ if(x.type==="update") batch.update(x.ref,{vehicleCode:null}); else batch.delete(x.ref); });
+        await batch.commit();
+      }
+      showToast("تم حذف المركبة وجميع تقاريرها وفك ربطها","Vehicle and all related reports deleted");
+    }catch(e){ console.error(e); showToast("تعذر الحذف الكامل للمركبة","Could not fully delete vehicle"); }
   });});
   qsa(".hist-row",qs("#main")).forEach(function(row){
     on(row,"click",function(){ openDetailFromRow(row); });
@@ -1680,7 +1688,7 @@ function usersHTML(){
    '<div class="field"><label class="bi">كلمة المرور المؤقتة</label><input id="uPass" type="password" minlength="6"></div><div class="field"><label class="bi">الصلاحية</label><select id="uRole"><option value="driver">فني / سائق</option><option value="supervisor">مشرف</option><option value="admin">مدير النظام</option></select></div>'+ 
    '<div class="field"><label class="bi">المدينة</label><select id="uCity"><option value="Jeddah">جدة</option><option value="Riyadh">الرياض</option><option value="Makkah">مكة</option><option value="all">جميع المدن</option></select></div><div class="field"><label class="bi">المركبة (اختياري)</label><select id="uVehicle"><option value="">—</option>'+state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'">'+esc(v.code)+'</option>';}).join('')+'</select></div></div>'+ 
    '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="createUserBtn">إنشاء الحساب</button></div><div id="uMsg" class="hint"></div></div>'+ 
-   '<div class="card"><div class="section-bar leaf">إشعار تحديث النظام <span class="en">App Update Notice</span></div><div class="hint" style="margin-bottom:10px">الإصدار المنشور حاليًا: '+esc(ver)+' — بعد رفع الملف الجديد إلى GitHub اضغط «نشر تحديث». سيظهر للفني زر تحديث جديد، ويفتح نفس الرابط بأحدث نسخة.</div><div class="btn-row"><button class="btn btn-primary" id="publishUpdateBtn">نشر تحديث جديد / Publish Update</button></div></div>'+ 
+   '<div class="card"><div class="section-bar leaf">إشعار تحديث النظام <span class="en">App Update Notice</span></div><div class="hint" style="margin-bottom:10px">الإصدار المنشور حاليًا: '+esc(ver)+' — بعد رفع الملف الجديد إلى GitHub اضغط «نشر تحديث». سيظهر للفني زر تحديث جديد، ويفتح نفس الرابط بأحدث نسخة.</div><div class="btn-row"><button class="btn btn-primary" id="publishUpdateBtn">نشر تحديث جديد / Publish Update</button><button class="btn btn-outline" id="cleanupOrphanReportsBtn">تنظيف تقارير المركبات المحذوفة / Clean Deleted Vehicle Reports</button></div></div>'+ 
    '<div class="card"><h3>الحسابات الحالية</h3><div class="users-list">'+(rows||'<div class="empty-state">لا توجد حسابات</div>')+'</div></div>';
 }
 function wireUsers(){
@@ -1702,6 +1710,20 @@ function wireUsers(){
     try{ await state.dbns.collection("users").doc(uid).update({vehicleCode:(sel&&sel.value)||null}); showToast("تم تحديث ربط المركبة","Vehicle assignment updated"); }
     catch(e){ showToast("تعذر تحديث الربط","Could not update assignment"); }
   });});
+  var clean=qs("#cleanupOrphanReportsBtn"); if(clean) on(clean,"click",async function(){
+    if(!confirm("سيتم حذف جميع التقارير التي لا توجد لها مركبة حاليًا. متابعة؟ / Delete reports belonging to vehicles that no longer exist?")) return;
+    clean.disabled=true;
+    try{
+      var vs=await state.dbns.collection("vehicles").get(), existing={};
+      vs.forEach(function(d){existing[d.id]=true;});
+      var refs=[];
+      var vr=await state.dbns.collection("vehicle_reports").get(); vr.forEach(function(d){var x=d.data()||{};if(x.vehicleCode&&!existing[x.vehicleCode])refs.push(d.ref);});
+      var er=await state.dbns.collection("equipment_reports").get(); er.forEach(function(d){var x=d.data()||{};if(x.vehicleCode&&!existing[x.vehicleCode])refs.push(d.ref);});
+      for(var i=0;i<refs.length;i+=450){var batch=state.dbns.batch();refs.slice(i,i+450).forEach(function(r){batch.delete(r);});await batch.commit();}
+      showToast("تم تنظيف "+refs.length+" تقريرًا للمركبات المحذوفة","Cleaned "+refs.length+" deleted-vehicle reports");
+    }catch(e){console.error(e);showToast("تعذر تنظيف التقارير القديمة","Could not clean old reports");}
+    finally{clean.disabled=false;}
+  });
   var pub=qs("#publishUpdateBtn"); if(pub) on(pub,"click",async function(){
     var version=new Date().toISOString();
     try{ await state.dbns.collection("app_config").doc("fleet_app").set({version:version,publishedAt:version,publishedBy:state.currentUser.uid},{merge:true}); showToast("تم نشر إشعار التحديث لجميع المستخدمين","Update notice published"); }
