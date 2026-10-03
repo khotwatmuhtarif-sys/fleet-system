@@ -576,7 +576,31 @@ function expiryBadge(iso,labelAr,labelEn){
 function evalBadge(code, table){
   var row = table.filter(function(r){return r[0]===code;})[0];
   if(!row) return '<span class="badge neutral">'+bi("—","—")+'</span>';
-  return '<span class="badge '+row[3]+'">'+esc(row[1])+'</span>';
+  return '<span class="badge '+row[3]+'">'+bi(row[1],row[2])+'</span>';
+}
+
+function driverVehicleManageForm(v){
+  var editing=!!v;
+  var arTitle=editing?"تعديل بيانات مركبتي":"إضافة مركبتي", enTitle=editing?"Edit My Vehicle":"Add My Vehicle";
+  var arHint=editing?"يمكنك تعديل بيانات مركبتك وحفظ التغييرات.":"أدخل بيانات مركبتك مرة واحدة، وبعد الحفظ ستظهر لك مركبتك وتقاريرها فقط.";
+  var enHint=editing?"You can edit your vehicle details and save the changes.":"Enter your vehicle details once. After saving, you will only see your vehicle and its reports.";
+  return '<div class="card" style="margin-top:14px">'+
+    '<div class="section-bar">'+bi(arTitle,enTitle)+'</div><div class="hint" style="margin-bottom:12px">'+bi(arHint,enHint)+'</div><div class="manage-row">'+
+    '<div class="field"><label class="bi">'+bi("كود المركبة","Vehicle Code")+'</label><input type="text" id="drvCode" value="'+esc(editing?(v.code||""):"")+'" placeholder="Auto: JED-01 / RIY-01" readonly></div>'+
+    '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><select id="drvCity"><option value="Jeddah" '+((v&&v.city)==="Jeddah"?"selected":"")+'>جدة / Jeddah</option><option value="Riyadh" '+((v&&v.city)==="Riyadh"?"selected":"")+'>الرياض / Riyadh</option></select></div>'+
+    '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><select id="drvType">'+vehicleTypeOptions(editing?(v.vehicleType||v.type||""):"")+'</select></div>'+
+    '<div class="field"><label class="bi">'+bi("رقم اللوحة","Plate No.")+'</label><input type="text" id="drvPlate" value="'+esc(editing?(v.plate||""):"")+'"></div>'+ 
+    '<div class="field"><label class="bi">'+bi("اسم السائق","Driver Name")+'</label><input type="text" id="drvDriver" value="'+esc(editing?(v.driverName||((state.currentProfile||{}).name)||""):"")+'"></div>'+ 
+    '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel")+'</label><select id="drvFuel"><option value="بنزين / Petrol" '+((v&&v.fuel)==="بنزين / Petrol"?"selected":"")+'>بنزين / Petrol</option><option value="ديزل / Diesel" '+((v&&v.fuel)==="ديزل / Diesel"?"selected":"")+'>ديزل / Diesel</option></select></div>'+ 
+    '<button class="btn btn-primary btn-sm" id="drvSaveVehicle" data-editing="'+(editing?"1":"0")+'">'+bi(editing?"حفظ التعديل":"إضافة المركبة",editing?"Save Changes":"Add Vehicle")+'</button></div></div>';
+}
+async function findNextVehicleCode(city){
+  var prefix=city==="Riyadh"?"RIY":"JED", max=0;
+  try{
+    var snap=await state.dbns.collection("vehicles").get();
+    snap.forEach(function(d){var m=String(d.id||"").match(new RegExp("^"+prefix+"-(\\d+)$"));if(m)max=Math.max(max,+m[1]);});
+  }catch(e){state.vehicles.forEach(function(v){var m=String(v.code||"").match(new RegExp("^"+prefix+"-(\\d+)$"));if(m)max=Math.max(max,+m[1]);});}
+  return prefix+"-"+String(max+1).padStart(2,"0");
 }
 
 function driverDashboardHTML(){
@@ -584,7 +608,7 @@ function driverDashboardHTML(){
   var code=p.vehicleCode||"";
   var v=code ? (state.vehicles.filter(function(x){return x.code===code;})[0] || null) : null;
   if(!v){
-    return '<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("لا توجد مركبة مرتبطة بحسابك","No vehicle assigned to your account")+'</div></div>';
+    return '<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("أضف مركبتك للبدء","Add Your Vehicle to Start")+'</div><div style="font-size:12.5px">'+bi("أدخل بيانات المركبة بنفسك، وبعد الإضافة ستظهر لك مركبتك فقط.","Enter your vehicle details yourself. After adding it, only your vehicle will appear here.")+'</div></div>'+driverVehicleManageForm(null);
   }
   var lr=latestReportFor(v.code,state.vReports), le=latestReportFor(v.code,state.eReports);
   var recent=state.vReports.map(function(r){return {type:"vehicle",r:r};}).concat(state.eReports.map(function(r){return {type:"equipment",r:r};})).filter(function(x){return x.r.vehicleCode===v.code;}).sort(function(a,b){return (b.r.createdAt||"")>(a.r.createdAt||"")?1:-1;}).slice(0,5);
@@ -592,7 +616,8 @@ function driverDashboardHTML(){
     '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+esc(v.city||"")+' · '+esc(v.vehicleType||v.type||"")+(v.plate?' · '+esc(v.plate):'')+'</div></div></div>'+
     '<div class="veh-rows"><div class="r"><span class="k">'+bi("آخر فحص مركبة","Last Vehicle Check")+'</span>'+(lr?evalFromCodeBadge(lr.evaluation,VEHICLE_EVAL):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div>'+
     '<div class="r"><span class="k">'+bi("آخر فحص معدات","Last Equipment Check")+'</span>'+(le?evalFromCodeBadge(le.finalEvaluation,EQUIP_EVAL):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div></div>'+
-    '<div class="btn-row"><button class="btn btn-primary btn-sm" data-newveh="'+esc(v.code)+'">'+bi("رفع تقرير مركبة","Vehicle Report")+'</button><button class="btn btn-leaf btn-sm" data-neweq="'+esc(v.code)+'">'+bi("رفع تقرير معدات","Equipment Report")+'</button></div></div>'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" data-newveh="'+esc(v.code)+'">'+bi("رفع تقرير مركبة","Vehicle Report")+'</button><button class="btn btn-leaf btn-sm" data-neweq="'+esc(v.code)+'">'+bi("رفع تقرير معدات","Equipment Report")+'</button><button class="btn btn-outline btn-sm" id="drvEditVehicle">'+bi("تعديل بيانات المركبة","Edit Vehicle Details")+'</button></div></div>'+ 
+    '<div id="drvEditHost" hidden>'+driverVehicleManageForm(v)+'</div>'+
     '<div class="section-bar" style="margin-top:16px">'+bi("تقاريري الأخيرة","My Recent Reports")+'</div><div>'+(recent.length?recent.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>')+'</div>';
 }
 
@@ -692,7 +717,28 @@ function nextVehicleCode(city){
   var prefix=city==="Riyadh"?"RIY":"JED"; var max=0; state.vehicles.forEach(function(v){var m=String(v.code||"").match(new RegExp("^"+prefix+"-(\\d+)$")); if(m)max=Math.max(max,+m[1]);}); return prefix+"-"+String(max+1).padStart(2,"0");
 }
 
+function wireDriverVehicleManager(){
+  var city=qs("#drvCity"), code=qs("#drvCode"), save=qs("#drvSaveVehicle");
+  if(!city||!code||!save) return;
+  var editing=save.getAttribute("data-editing")==="1";
+  async function refreshCode(){if(!editing) code.value=await findNextVehicleCode(city.value);}
+  refreshCode(); on(city,"change",refreshCode);
+  on(save,"click",async function(){
+    var c=(code.value||"").trim(); if(!c){c=await findNextVehicleCode(city.value);code.value=c;}
+    var body={code:c,city:city.value,vehicleType:(qs("#drvType").value||"").trim(),plate:(qs("#drvPlate").value||"").trim(),driverName:(qs("#drvDriver").value||"").trim(),fuel:qs("#drvFuel").value||"",active:true,ownerUid:state.currentUser.uid,ownerEmail:state.currentUser.email||"",updatedAt:new Date().toISOString()};
+    if(!editing)body.createdAt=new Date().toISOString(); save.disabled=true;
+    try{
+      if(editing){var existing=await state.dbns.collection("vehicles").doc(c).get();if(!existing.exists||(existing.data().ownerUid&&existing.data().ownerUid!==state.currentUser.uid))throw new Error("not-owner");await state.dbns.collection("vehicles").doc(c).set(body,{merge:true});}
+      else{var chk=await state.dbns.collection("vehicles").doc(c).get();if(chk.exists){c=await findNextVehicleCode(city.value);code.value=c;body.code=c;}await state.dbns.collection("vehicles").doc(c).set(body);}
+      state.currentProfile.vehicleCode=c; try{await state.dbns.collection("users").doc(state.currentUser.uid).update({vehicleCode:c});}catch(ignore){}
+      showToast(editing?"تم حفظ تعديل المركبة":"تمت إضافة مركبتك",editing?"Vehicle changes saved":"Your vehicle was added"); renderTabbar();renderTab();
+    }catch(e){showToast("تعذر حفظ بيانات المركبة","Could not save vehicle details");save.disabled=false;}
+  });
+}
+
 function wireDashboard(){
+  var de=qs("#drvEditVehicle"), dh=qs("#drvEditHost"); if(de&&dh) on(de,"click",function(){dh.hidden=!dh.hidden;if(!dh.hidden)wireDriverVehicleManager();});
+  wireDriverVehicleManager();
   var mvc=qs("#mvCity"), mvcod=qs("#mvCode"); if(mvc&&mvcod){ mvcod.value=nextVehicleCode(mvc.value); on(mvc,"change",function(){mvcod.value=nextVehicleCode(mvc.value);}); }
   qsa("[data-newveh]").forEach(function(b){ on(b,"click",function(){
     vehicleDraft.vehicleCode = b.getAttribute("data-newveh");
@@ -1675,7 +1721,7 @@ function startDataSubscriptions(){
   if(!state.dbns)return;
   state.dbns.collection("vehicles").onSnapshot(function(snap){
     var all=snap.docs.map(function(d){var b=d.data()||{};b.code=d.id;return b;}).filter(function(v){return v.active!==false;});
-    var p=state.currentProfile||{}; if(p.role==="driver") all=p.vehicleCode?all.filter(function(v){return v.code===p.vehicleCode;}):[]; else if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
+    var p=state.currentProfile||{}; if(p.role==="driver"){var mine=all.filter(function(v){return v.ownerUid===state.currentUser.uid||(p.vehicleCode&&v.code===p.vehicleCode);});if(mine.length&&!p.vehicleCode){p.vehicleCode=mine[0].code;renderTabbar();}all=mine.slice(0,1);} else if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
     state.vehicles=all.sort(function(a,b){return (a.code||"").localeCompare(b.code||"");}); state.vehiclesLoaded=true; if(state.tab==="dashboard"||state.tab==="history"||state.tab==="users")renderTab(); else refreshCodeSelectsOnly();
   });
   state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.vReports=all;state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
