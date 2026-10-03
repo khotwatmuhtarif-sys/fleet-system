@@ -240,6 +240,8 @@ table.rep-table th{background:var(--surface-2)}
 .manage-row{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end}
 .manage-row .field{flex:1; min-width:120px}
 
+
+.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:20px}.auth-card{width:min(440px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow)}.auth-card h2{margin:0 0 6px}.auth-card .field{margin-top:12px}.user-chip{font-size:11px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:6px 10px}.users-list{display:grid;gap:8px;margin-top:12px}.user-row{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:10px;padding:10px}.user-row .meta{font-size:11px;color:var(--muted)}
 @media print{ body{display:none} }
 </style>
 </head>
@@ -250,6 +252,7 @@ table.rep-table th{background:var(--surface-2)}
 
 <!-- Firebase (compat SDK) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <!-- jsPDF + html2canvas: used only by the PDF export button -->
@@ -267,18 +270,18 @@ table.rep-table th{background:var(--surface-2)}
    Put your Firebase project settings here (same project used by the client portal)
    ======================================================================== */
 var FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBMlnItFfIa-PLJJ98h2kBkIyT9CtTbv_I",
+  authDomain: "maintenance-reports-a2603.firebaseapp.com",
+  projectId: "maintenance-reports-a2603",
+  storageBucket: "maintenance-reports-a2603.firebasestorage.app",
+  messagingSenderId: "457899264479",
+  appId: "1:457899264479:web:5ff2d90ff78674d6639c6a"
 };
 
 /* إعدادات Cloudinary لرفع الصور مجانًا (نفس خدمة واجهة المتعاقدين الحالية)
    Cloudinary settings for free photo uploads (same service used by the client portal) */
-var CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME";
-var CLOUDINARY_UPLOAD_PRESET = "YOUR_UNSIGNED_UPLOAD_PRESET";
+var CLOUDINARY_CLOUD_NAME = "jg54wewl";
+var CLOUDINARY_UPLOAD_PRESET = "fleet_uploads";
 
 /* ========================================================================
    DATA: logo, vehicles reference, checklist / equipment / readiness items
@@ -289,13 +292,8 @@ var VEHICLE_CHECK_ITEMS = [
   ["oil","زيت المحرك","Engine Oil"],
   ["coolant","ماء / سائل الرديتر","Coolant / Radiator Fluid"],
   ["brakefluid","زيت الفرامل","Brake Fluid"],
-  ["battery","البطارية","Battery"],
-  ["tirefr","الكفر الأمامي يمين","Front-Right Tire"],
-  ["tirefl","الكفر الأمامي يسار","Front-Left Tire"],
-  ["tirerr","الكفر الخلفي يمين","Rear-Right Tire"],
-  ["tirerl","الكفر الخلفي يسار","Rear-Left Tire"],
+  ["tires","حالة الكفرات","Tire Condition"],
   ["tirespare","الكفر الاحتياطي","Spare Tire"],
-  ["tirepressure","ضغط الكفرات","Tire Pressure"],
   ["brakes","الفرامل","Brakes"],
   ["lightsfront","الأنوار الأمامية","Front Lights"],
   ["lightsrear","الأنوار الخلفية","Rear Lights"],
@@ -305,20 +303,19 @@ var VEHICLE_CHECK_ITEMS = [
   ["ac","المكيف","A/C"],
   ["glass","الزجاج","Glass"],
   ["mirrors","المرايا","Mirrors"],
-  ["exterior","الحالة الخارجية والبودي","Exterior & Body"],
   ["dents","الصدمات والخدوش","Dents & Scratches"],
-  ["interior","الحالة الداخلية","Interior Condition"],
-  ["cleanliness","نظافة المركبة","Cleanliness"],
-  ["seats","المقاعد والطبلون","Seats & Dashboard"],
-  ["estemara","الاستمارة","Registration (Estemara)"],
-  ["insurance","التأمين","Insurance"],
-  ["periodic","الفحص الدوري","Periodic Inspection"]
+  ["interior","الحالة الداخلية","Interior Condition"]
 ];
 
 var VEHICLE_PHOTOS = [
   ["estemara","صورة الاستمارة","Registration Photo"],
+  ["insurance","صورة التأمين","Insurance Photo"],
   ["fahs","صورة الفحص الدوري","Inspection Certificate Photo"],
   ["odometer","صورة العداد","Odometer Photo"],
+  ["tires","صورة الكفر المتضرر عند وجود مشكلة","Problem Tire Photo (if applicable)"],
+  ["tirespare","صورة الكفر الاحتياطي","Spare Tire Photo"],
+  ["dents","صورة الصدمات والخدوش عند وجودها","Dents / Scratches Photo (if present)"],
+  ["interior","صورة الحالة الداخلية عند وجود مشكلة","Interior Photo (if not sound)"],
   ["right","المركبة — يمين","Vehicle — Right Side"],
   ["left","المركبة — يسار","Vehicle — Left Side"],
   ["front","المركبة — أمام","Vehicle — Front"],
@@ -330,20 +327,21 @@ var VEHICLE_PHOTOS = [
 var EQUIPMENT_ITEMS = [
   ["fogger","ماكينة تضبيب حراري (دخان)","Thermal Fogging Machine"],
   ["ulv","ماكينة ULV","ULV Machine"],
-  ["manual10","ماكينة ضغط يدوي 10 لتر أو أقل","Manual Sprayer ≤10L"],
+  ["manual10","ماكينة ضغط يدوي 10 لتر أو أقل","Manual Sprayer 10L or Less"],
   ["manual20","ماكينة ضغط يدوي 20 لتر","Manual Sprayer 20L"],
-  ["batt10","ماكينة ضغط بطارية 10 لتر أو أقل","Battery Sprayer ≤10L"],
+  ["batt10","ماكينة ضغط بطارية 10 لتر أو أقل","Battery Sprayer 10L or Less"],
   ["batt20","ماكينة ضغط بطارية ظهر 20 لتر","Battery Backpack Sprayer 20L"],
   ["gloria","ماكينة جلوريا ستيل","Gloria Steel Sprayer"],
   ["preconstruct","ماكينة رش قبل البناء","Pre-Construction Spray Machine"],
   ["chambertools","معدات فتح غرف التفتيش","Inspection Chamber Tools"],
-  ["hilti","شنيور دريل هيلتي","Hilti Drill"],
-  ["drilltermite","شنيور عادي (ريش طويلة لحفر النمل الأبيض)","Standard Drill (Long Bits – Termite)"],
-  ["putty","سكاكين معجون (أبو جمل)","Putty Knives"],
-  ["screwdriver","مفك","Screwdriver"],
-  ["hammer","شاكوش","Hammer"],
+  ["drilltermite","شنيور دريل حفر نمل أبيض","Termite Drilling Drill"],
+  ["drillwall","شنيور جدار","Wall Drill"],
+  ["putty","سكاكين معجون","Putty Knives"],
+  ["handtools","مفك وشاكوش وأدوات يدوية","Screwdriver, Hammer & Hand Tools"],
   ["ladder","سلم","Ladder"],
-  ["wiredetector","جهاز كشف تمديدات الكهرباء","Electrical Wiring Detector"],
+  ["bedbuglight","كشاف / لمبة يدوية لبق الفراش","Bed Bug Inspection Flashlight"],
+  ["flashlight","كشاف / لمبة يدوية لأغراض أخرى","General-Purpose Flashlight"],
+  ["extension","وصلة كهرباء طويلة","Long Extension Cord"],
   ["toolbox","صندوق معدات / عدة يدوية","Tool Box / Hand Tools"],
   ["pestbox","صندوق وضع المبيدات","Pesticide Storage Box"],
   ["safetybox","صندوق معدات السلامة","Safety Equipment Box"],
@@ -357,11 +355,9 @@ var EQUIPMENT_ITEMS = [
   ["personalbox","صندوق الأغراض الشخصية","Personal Belongings Box"],
   ["firstaid","شنطة إسعافات أولية","First Aid Kit"],
   ["extinguisher","طفاية حريق","Fire Extinguisher"],
-  ["triangle","مثلث / أقماع تحذيرية","Warning Triangle / Cones"],
-  ["flashlight","كشاف","Flashlight"],
-  ["extension","وصلة كهرباء","Extension Cord"],
-  ["mixingtools","أدوات قياس وخلط المبيدات","Pesticide Mixing & Measuring Tools"]
+  ["triangle","مثلث / أقماع تحذيرية","Warning Triangle / Cones"]
 ];
+var EQUIP_STATUS = [["sound","سليم","Sound","ok"],["not_sound","غير سليم","Not Sound","danger"],["missing","غير موجود","Missing","danger"]];
 
 var READINESS_ITEMS = [
   ["secured","المعدات مثبتة ومرتبة","Equipment Secured & Organized"],
@@ -446,7 +442,8 @@ var state = {
   reportsLoaded: false,
   profiles: {},
   myId: null,
-  overlay: null /* {type,report} */
+  overlay: null, /* {type,report} */
+  auth:null, currentUser:null, currentProfile:null, users:[]
 };
 
 function freshVehicleDraft(){
@@ -455,8 +452,8 @@ function freshVehicleDraft(){
   return {
     vehicleCode:"", city:"", vehicleType:"", plate:"", fuel:"", driverName:"",
     inspectionDate: todayISO(), odometer:"",
-    oilLastDate:"", oilLastOdometer:"", oilNextDueKm:"", oilNextDueDate:"",
-    sparkPlugsNote:"", filtersNote:"",
+    oilLastDate:"", oilLastOdometer:"", airFilterDate:"", oilFilterDate:"",
+    tireProblem:"",
     estemaraExpiry:"", fahsExpiry:"", insuranceExpiry:"",
     checklist: checklist,
     photos: {},
@@ -466,12 +463,12 @@ function freshVehicleDraft(){
 }
 function freshEquipmentDraft(){
   var items = {};
-  EQUIPMENT_ITEMS.forEach(function(it){ items[it[0]] = {req:"",have:"",avail:"",cond:"",notes:""}; });
+  EQUIPMENT_ITEMS.forEach(function(it){ items[it[0]] = {qty:"",status:"",notes:""}; });
   var readiness = {};
   READINESS_ITEMS.forEach(function(it){ readiness[it[0]] = ""; });
   return {
     vehicleCode:"", plate:"", city:"", driverTech:"", supervisorName:"", date: todayISO(), odometer:"",
-    items: items, extraItems:[],
+    items: items, extraItems:[], photos:{},
     readiness: readiness,
     missingNotes:"", maintenanceNotes:"", requiredAction:"",
     finalEvaluation:"", technicianName:""
@@ -493,7 +490,8 @@ var TABS = [
   ["dashboard","الرئيسية","Dashboard"],
   ["vehicle","تقرير مركبة","Vehicle Report"],
   ["equipment","تقرير معدات","Equipment Report"],
-  ["history","السجل","History"]
+  ["history","السجل","History"],
+  ["users","المستخدمون","Users"]
 ];
 
 function renderShell(){
@@ -503,6 +501,8 @@ function renderShell(){
       '<img class="appbar-logo" src="'+LOGO_DATA_URL+'" alt="Professional Step logo">'+
       '<div class="appbar-titles"><b>أسطول خطوة محترف</b><span class="sub">Professional Step Fleet &amp; Equipment</span></div>'+
       '<div class="appbar-spacer"></div>'+
+      '<div class="user-chip" id="userChip"></div>'+
+      '<button class="btn btn-ghost btn-sm" id="logoutBtn">خروج</button>'+
       '<div class="appbar-badge" id="connBadge">'+bi("جارٍ الاتصال…","Connecting…")+'</div>'+
     '</div>'+
     '<nav class="container tabbar" id="tabbar" role="tablist"></nav>'+
@@ -510,11 +510,14 @@ function renderShell(){
     '<main class="container" id="main"></main>';
   renderTabbar();
   renderTab();
+  var lo=qs("#logoutBtn"); if(lo) on(lo,"click",function(){ if(state.auth) state.auth.signOut(); });
+  var uc=qs("#userChip"); if(uc && state.currentProfile) uc.textContent=(state.currentProfile.name||state.currentUser.email)+" • "+(state.currentProfile.role||"");
 }
 
 function renderTabbar(){
   var bar = qs("#tabbar");
-  bar.innerHTML = TABS.map(function(t){
+  var visibleTabs=TABS.filter(function(t){ return t[0]!=="users" || (state.currentProfile&&state.currentProfile.role==="admin"); });
+  bar.innerHTML = visibleTabs.map(function(t){
     return '<button class="tab" role="tab" data-tab="'+t[0]+'" aria-selected="'+(state.tab===t[0])+'">'+
       '<span class="ar">'+esc(t[1])+'</span><span class="en">'+esc(t[2])+'</span></button>';
   }).join("");
@@ -534,12 +537,15 @@ function renderTab(){
   if(state.tab==="dashboard") main.innerHTML = dashboardHTML();
   else if(state.tab==="vehicle") main.innerHTML = vehicleFormHTML();
   else if(state.tab==="equipment") main.innerHTML = equipmentFormHTML();
-  else main.innerHTML = historyHTML();
+  else if(state.tab==="history") main.innerHTML = historyHTML();
+  else if(state.tab==="users") main.innerHTML = usersHTML();
+  else main.innerHTML = dashboardHTML();
 
   if(state.tab==="dashboard") wireDashboard();
   if(state.tab==="vehicle") wireVehicleForm();
   if(state.tab==="equipment") wireEquipmentForm();
   if(state.tab==="history") wireHistory();
+  if(state.tab==="users") wireUsers();
 }
 
 /* ========================================================================
@@ -579,7 +585,7 @@ function dashboardHTML(){
     var lr = latestReportFor(v.code, vReports);
     if(lr && lr.checklist){ Object.keys(lr.checklist).forEach(function(k){ if(lr.checklist[k] && lr.checklist[k].status==="maintenance") maintCount++; }); }
     var le = latestReportFor(v.code, eReports);
-    if(le && le.items){ Object.keys(le.items).forEach(function(k){ if(le.items[k] && le.items[k].cond==="maintenance") maintCount++; if(le.items[k] && le.items[k].avail==="missing") maintCount++; }); }
+    if(le && le.items){ Object.keys(le.items).forEach(function(k){ if(le.items[k] && (le.items[k].status==="not_sound" || le.items[k].status==="missing")) maintCount++; }); }
   });
   var expiringSoon = 0;
   vehicles.forEach(function(v){
@@ -643,9 +649,9 @@ function dashboardHTML(){
     '<div class="card" style="margin-top:14px">'+
       '<div class="section-bar">'+bi("إضافة مركبة جديدة","Add New Vehicle")+'</div>'+
       '<div class="manage-row">'+
-        '<div class="field"><label class="bi">'+bi("كود المركبة","Vehicle Code")+'</label><input type="text" id="mvCode" placeholder="JED-03"></div>'+
-        '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><input type="text" id="mvCity" placeholder="جدة / Jeddah"></div>'+
-        '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><input type="text" id="mvType"></div>'+
+        '<div class="field"><label class="bi">'+bi("كود المركبة","Vehicle Code")+'</label><input type="text" id="mvCode" placeholder="Auto: JED-01 / RIY-01" readonly></div>'+
+        '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><select id="mvCity"><option value="Jeddah">جدة / Jeddah</option><option value="Riyadh">الرياض / Riyadh</option></select></div>'+
+        '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><select id="mvType">'+vehicleTypeOptions("")+'</select></div>'+
         '<div class="field"><label class="bi">'+bi("رقم اللوحة","Plate No.")+'</label><input type="text" id="mvPlate"></div>'+
         '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel")+'</label><select id="mvFuel"><option value="بنزين / Petrol">'+bi("بنزين","Petrol")+'</option><option value="ديزل / Diesel">'+bi("ديزل","Diesel")+'</option></select></div>'+
         '<button class="btn btn-primary btn-sm" id="mvAdd">'+bi("إضافة","Add")+'</button>'+
@@ -660,7 +666,13 @@ function evalFromCodeBadge(code, table){
   return '<span class="badge '+row[3]+'">'+esc(row[1])+'</span>';
 }
 
+
+function nextVehicleCode(city){
+  var prefix=city==="Riyadh"?"RIY":"JED"; var max=0; state.vehicles.forEach(function(v){var m=String(v.code||"").match(new RegExp("^"+prefix+"-(\\d+)$")); if(m)max=Math.max(max,+m[1]);}); return prefix+"-"+String(max+1).padStart(2,"0");
+}
+
 function wireDashboard(){
+  var mvc=qs("#mvCity"), mvcod=qs("#mvCode"); if(mvc&&mvcod){ mvcod.value=nextVehicleCode(mvc.value); on(mvc,"change",function(){mvcod.value=nextVehicleCode(mvc.value);}); }
   qsa("[data-newveh]").forEach(function(b){ on(b,"click",function(){
     vehicleDraft.vehicleCode = b.getAttribute("data-newveh");
     var v = state.vehicles.filter(function(x){return x.code===vehicleDraft.vehicleCode;})[0];
@@ -715,8 +727,13 @@ function vehicleCodeOptions(selected){
   state.vehicles.forEach(function(v){
     opts += '<option value="'+esc(v.code)+'"'+(v.code===selected?" selected":"")+'>'+esc(v.code)+'</option>';
   });
-  opts += '<option value="__custom__">'+("كود آخر… / Other code…")+'</option>';
   return opts;
+}
+
+
+function vehicleTypeOptions(selected){
+  var opts=[["","—"],["single_pickup","بيك أب غمارة / Single Cab Pickup"],["double_pickup","بيك أب غمارتين / Double Cab Pickup"],["sedan","سيدان / Sedan"],["suv_4wd","دفع رباعي / SUV / 4WD"]];
+  return opts.map(function(o){return '<option value="'+o[0]+'"'+(selected===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('');
 }
 
 function vehicleFormHTML(){
@@ -727,29 +744,27 @@ function vehicleFormHTML(){
   '<div class="section-bar">'+bi("نموذج الفحص والمتابعة الدورية للمركبة","Vehicle Periodic Inspection &amp; Maintenance Form")+'</div>'+
   '<div class="card"><div class="grid grid-3">'+
     field_select("vCode","كود المركبة","Vehicle Code", vehicleCodeOptions(d.vehicleCode)) +
-    field_text("vCustomCode","كود مخصص (إن لزم)","Custom Code (if needed)", d.vehicleCode && !state.vehicles.some(function(v){return v.code===d.vehicleCode;}) ? d.vehicleCode : "") +
     field_text("vCity","المدينة","City", d.city) +
-    field_text("vType","نوع المركبة","Vehicle Type", d.vehicleType) +
+    field_select("vType","نوع المركبة","Vehicle Type", vehicleTypeOptions(d.vehicleType)) +
     field_text("vPlate","رقم اللوحة","Plate No.", d.plate) +
     field_select("vFuel","نوع الوقود","Fuel Type", '<option value="">—</option><option value="بنزين / Petrol"'+(d.fuel==="بنزين / Petrol"?" selected":"")+'>'+bi("بنزين","Petrol")+'</option><option value="ديزل / Diesel"'+(d.fuel==="ديزل / Diesel"?" selected":"")+'>'+bi("ديزل","Diesel")+'</option>') +
-    field_text("vDriver","اسم السائق أو المسؤول","Driver / Responsible Name", d.driverName) +
+    field_text("vDriver","اسم السائق","Driver Name", d.driverName) +
     field_date("vInspDate","تاريخ الفحص","Inspection Date", d.inspectionDate) +
     field_number("vOdo","قراءة العداد الحالية (كم)","Current Odometer (KM)", d.odometer) +
   '</div></div>'+
 
   '<div class="section-bar">'+bi("الصيانة الدورية","Periodic Maintenance")+'</div>'+
   '<div class="card"><div class="grid grid-3">'+
-    field_date("vOilDate","تاريخ آخر تغيير زيت محرك","Last Oil Change Date", d.oilLastDate) +
-    field_number("vOilOdo","العداد عند آخر تغيير زيت","Odometer at Last Change", d.oilLastOdometer) +
-    field_number("vOilNextKm","موعد تغيير الزيت القادم (كم)","Next Oil Change (KM)", d.oilNextDueKm) +
-    field_date("vOilNextDate","أو بتاريخ","Or by Date", d.oilNextDueDate) +
-    field_text("vSpark","شمعات الإشعال","Spark Plugs — Note", d.sparkPlugsNote) +
-    field_text("vFilters","الفلاتر (زيت / هواء)","Filters (Oil/Air) — Note", d.filtersNote) +
+    field_date("vOilDate","تاريخ آخر تغيير زيت المحرك","Last Engine Oil Change Date", d.oilLastDate) +
+    field_number("vOilOdo","قراءة العداد عند آخر تغيير زيت","Odometer at Last Oil Change", d.oilLastOdometer) +
+    field_date("vAirFilterDate","تاريخ تغيير فلتر الهواء","Air Filter Change Date", d.airFilterDate) +
+    field_date("vOilFilterDate","تاريخ تغيير فلتر الزيت","Oil Filter Change Date", d.oilFilterDate) +
   '</div></div>'+
 
   '<div class="section-bar">'+bi("جدول فحص المركبة","Vehicle Inspection Checklist")+'</div>'+
   '<div class="card" id="vChecklist">'+
     VEHICLE_CHECK_ITEMS.map(function(it,i){ return checklistItemHTML("vchk",it,i+1,d.checklist[it[0]]); }).join("")+
+    '<div class="field" style="margin-top:12px"><label class="bi">'+bi("إذا كانت الكفرات تحتاج متابعة/صيانة، حدد الكفر","If tires need follow-up/maintenance, select the affected tire")+'</label><select id="vTireProblem"><option value="">—</option><option value="front_right">أمامي يمين / Front Right</option><option value="front_left">أمامي يسار / Front Left</option><option value="rear_right">خلفي يمين / Rear Right</option><option value="rear_left">خلفي يسار / Rear Left</option></select></div>'+
   '</div>'+
 
   '<div class="section-bar">'+bi("تواريخ الوثائق","Document Expiry Dates")+'</div>'+
@@ -846,8 +861,7 @@ function wireVehicleForm(){
   var map = [
     ["vCode","vehicleCode"],["vCity","city"],["vType","vehicleType"],["vPlate","plate"],
     ["vFuel","fuel"],["vDriver","driverName"],["vInspDate","inspectionDate"],["vOdo","odometer"],
-    ["vOilDate","oilLastDate"],["vOilOdo","oilLastOdometer"],["vOilNextKm","oilNextDueKm"],["vOilNextDate","oilNextDueDate"],
-    ["vSpark","sparkPlugsNote"],["vFilters","filtersNote"],
+    ["vOilDate","oilLastDate"],["vOilOdo","oilLastOdometer"],["vAirFilterDate","airFilterDate"],["vOilFilterDate","oilFilterDate"],["vTireProblem","tireProblem"],
     ["vEstExp","estemaraExpiry"],["vInsExp","insuranceExpiry"],["vFahsExp","fahsExpiry"],
     ["vFaults","faults"],["vAction","requiredAction"],
     ["vSupName","supervisorName"],["vDriver2","driverName2"],["vNextFollow","nextFollowup"]
@@ -857,9 +871,9 @@ function wireVehicleForm(){
     on(el,"input",function(){ vehicleDraft[pair[1]] = el.value; saveVehicleDraft(); });
     on(el,"change",function(){ vehicleDraft[pair[1]] = el.value; saveVehicleDraft(); });
   });
+  var tp=qs("#vTireProblem"); if(tp) tp.value=vehicleDraft.tireProblem||"";
   on(qs("#vCode"),"change",function(){
     var code = qs("#vCode").value;
-    if(code==="__custom__"){ return; }
     var v = state.vehicles.filter(function(x){return x.code===code;})[0];
     if(v){
       qs("#vCity").value = v.city||""; vehicleDraft.city=v.city||"";
@@ -869,7 +883,6 @@ function wireVehicleForm(){
       saveVehicleDraft();
     }
   });
-  on(qs("#vCustomCode"),"input",function(){ vehicleDraft.vehicleCode = qs("#vCustomCode").value; saveVehicleDraft(); });
 
   /* checklist segments + notes */
   wireSegControls(qs("#vChecklist"), function(group, val){
@@ -966,10 +979,15 @@ async function handlePhotoUpload(prefix, slotId, file, draft, saver){
 
 async function submitVehicleReport(){
   var d = vehicleDraft;
-  var code = (d.vehicleCode==="__custom__" ? "" : d.vehicleCode) || qs("#vCustomCode").value;
+  var code = (d.vehicleCode||"").trim();
   code = (code||"").trim();
-  if(!code){ showToast("يرجى اختيار أو إدخال كود المركبة","Please select or enter a vehicle code"); return; }
+  if(!code){ showToast("يرجى اختيار كود المركبة","Please select a vehicle code"); return; }
   if(!d.inspectionDate){ showToast("يرجى تحديد تاريخ الفحص","Please set the inspection date"); return; }
+  var tireStatus=(d.checklist.tires||{}).status, dentsStatus=(d.checklist.dents||{}).status, interiorStatus=(d.checklist.interior||{}).status;
+  if(!d.photos.tirespare || !d.photos.tirespare.id){ showToast("صورة الكفر الاحتياطي مطلوبة","Spare tire photo is required"); return; }
+  if((tireStatus==="followup"||tireStatus==="maintenance") && (!d.tireProblem || !d.photos.tires || !d.photos.tires.id)){ showToast("حدد الكفر المتضرر وارفع صورته","Select the affected tire and upload its photo"); return; }
+  if((dentsStatus==="followup"||dentsStatus==="maintenance") && (!d.photos.dents||!d.photos.dents.id)){ showToast("ارفع صورة الصدمات أو الخدوش","Upload a photo of dents/scratches"); return; }
+  if((interiorStatus==="followup"||interiorStatus==="maintenance") && (!d.photos.interior||!d.photos.interior.id)){ showToast("ارفع صورة الحالة الداخلية","Upload an interior photo"); return; }
   if(!d.supervisorName || !d.supervisorName.trim()){ showToast("يرجى إدخال اسم المشرف","Please enter the supervisor name"); return; }
   if(!state.dbns){ showToast("قاعدة البيانات غير متاحة حاليًا","Database unavailable right now"); return; }
 
@@ -980,8 +998,7 @@ async function submitVehicleReport(){
   var payload = {
     vehicleCode: code, city:d.city||"", vehicleType:d.vehicleType||"", plate:d.plate||"", fuel:d.fuel||"",
     driverName:d.driverName||"", inspectionDate:d.inspectionDate, odometer:d.odometer||"",
-    oilLastDate:d.oilLastDate||"", oilLastOdometer:d.oilLastOdometer||"", oilNextDueKm:d.oilNextDueKm||"", oilNextDueDate:d.oilNextDueDate||"",
-    sparkPlugsNote:d.sparkPlugsNote||"", filtersNote:d.filtersNote||"",
+    oilLastDate:d.oilLastDate||"", oilLastOdometer:d.oilLastOdometer||"", airFilterDate:d.airFilterDate||"", oilFilterDate:d.oilFilterDate||"", tireProblem:d.tireProblem||"",
     estemaraExpiry:d.estemaraExpiry||"", fahsExpiry:d.fahsExpiry||"", insuranceExpiry:d.insuranceExpiry||"",
     checklist: d.checklist, photos: photos,
     evaluation:d.evaluation||"", faults:d.faults||"", requiredAction:d.requiredAction||"",
@@ -1010,10 +1027,9 @@ function equipmentFormHTML(){
   '<div class="section-bar">'+bi("نموذج جرد وفحص معدات مركبة مكافحة الآفات","Pest Control Vehicle Equipment Checklist")+'</div>'+
   '<div class="card"><div class="grid grid-3">'+
     field_select("eCode","كود المركبة","Vehicle Code", vehicleCodeOptions(d.vehicleCode)) +
-    field_text("eCustomCode","كود مخصص (إن لزم)","Custom Code (if needed)", d.vehicleCode && !state.vehicles.some(function(v){return v.code===d.vehicleCode;}) ? d.vehicleCode : "") +
     field_text("ePlate","رقم اللوحة","Plate No.", d.plate) +
     field_text("eCity","المدينة","City", d.city) +
-    field_text("eTech","اسم السائق / الفني","Driver / Technician", d.driverTech) +
+    field_text("eTech","اسم السائق","Driver Name", d.driverTech) +
     field_text("eSup","اسم المشرف","Supervisor Name", d.supervisorName) +
     field_date("eDate","التاريخ","Date", d.date) +
     field_number("eOdo","قراءة العداد","Odometer", d.odometer) +
@@ -1058,33 +1074,19 @@ function equipmentFormHTML(){
 }
 
 function equipmentItemHTML(it,idx,data){
-  data = data||{req:"",have:"",avail:"",cond:"",notes:""};
+  data = data||{qty:"",status:"",notes:""};
+  var ph=(equipmentDraft.photos||{})[it[0]];
   return '<div class="item-card" data-item="'+it[0]+'">'+
-    '<div class="item-head"><span class="item-idx">'+idx+'</span>'+
-      '<div class="item-name"><b>'+esc(it[1])+'</b><span class="en">'+esc(it[2])+'</span></div></div>'+
-    '<div class="item-row">'+
-      '<div class="mini"><label>'+("الكمية المطلوبة / Required")+'</label><input type="number" id="eq-'+it[0]+'-req" value="'+esc(data.req||"")+'"></div>'+
-      '<div class="mini"><label>'+("الكمية الموجودة / Available")+'</label><input type="number" id="eq-'+it[0]+'-have" value="'+esc(data.have||"")+'"></div>'+
-      segControl("eqa-"+it[0], AVAIL2, data.avail) +
-      segControl("eqc-"+it[0], COND2, data.cond) +
-      '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="eq-'+it[0]+'-notes" value="'+esc(data.notes||"")+'"></div>'+
-    '</div></div>';
+    '<div class="item-head"><span class="item-idx">'+idx+'</span><div class="item-name"><b>'+esc(it[1])+'</b><span class="en">'+esc(it[2])+'</span></div></div>'+
+    '<div class="item-row"><div class="mini"><label>العدد / Quantity</label><input type="number" min="0" id="eq-'+it[0]+'-qty" value="'+esc(data.qty||"")+'"></div>'+
+    segControl("eqs-"+it[0], EQUIP_STATUS, data.status)+
+    '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="eq-'+it[0]+'-notes" value="'+esc(data.notes||"")+'"></div></div>'+
+    '<div style="margin-top:10px">'+photoSlotHTML("ephoto",[it[0],"صورة المعدة","Equipment Photo"],ph)+'</div></div>';
 }
 
 function extraItemsHTML(list){
   if(!list.length) return '<p class="hint" style="margin-bottom:10px">'+bi("لا توجد معدات إضافية بعد","No additional equipment yet")+'</p>';
-  return list.map(function(item,i){
-    return '<div class="item-card" data-extra="'+i+'">'+
-      '<div class="item-row">'+
-        '<div class="notes" style="flex:1 1 200px"><label style="display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-bottom:3px">'+("اسم المعدة / Name")+'</label><input type="text" id="ex-'+i+'-name" value="'+esc(item.name||"")+'"></div>'+
-        '<div class="mini"><label>'+("مطلوبة / Req.")+'</label><input type="number" id="ex-'+i+'-req" value="'+esc(item.req||"")+'"></div>'+
-        '<div class="mini"><label>'+("موجودة / Have")+'</label><input type="number" id="ex-'+i+'-have" value="'+esc(item.have||"")+'"></div>'+
-        segControl("exa-"+i, AVAIL2, item.avail) +
-        segControl("exc-"+i, COND2, item.cond) +
-        '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="ex-'+i+'-notes" value="'+esc(item.notes||"")+'"></div>'+
-        '<button type="button" class="item-remove" data-removeextra="'+i+'">✕ '+("حذف")+'</button>'+
-      '</div></div>';
-  }).join("");
+  return list.map(function(item,i){return '<div class="item-card" data-extra="'+i+'"><div class="item-row"><div class="notes"><label>اسم المعدة / Name</label><input type="text" id="ex-'+i+'-name" value="'+esc(item.name||"")+'"></div><div class="mini"><label>العدد / Quantity</label><input type="number" id="ex-'+i+'-qty" value="'+esc(item.qty||"")+'"></div>'+segControl("exs-"+i,EQUIP_STATUS,item.status)+'<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="ex-'+i+'-notes" value="'+esc(item.notes||"")+'"></div><button type="button" class="item-remove" data-removeextra="'+i+'">✕ حذف / Remove</button></div></div>';}).join("");
 }
 
 function readinessItemHTML(it,idx,val){
@@ -1115,35 +1117,20 @@ function wireEquipmentForm(){
   on(qs("#eSupName2"),"input",function(){ equipmentDraft.supervisorName = qs("#eSupName2").value; var o=qs("#eSup"); if(o) o.value=qs("#eSupName2").value; saveEquipmentDraft(); });
   on(qs("#eCode"),"change",function(){
     var code = qs("#eCode").value;
-    if(code==="__custom__") return;
     var v = state.vehicles.filter(function(x){return x.code===code;})[0];
     if(v){ qs("#eCity").value=v.city||""; equipmentDraft.city=v.city||""; qs("#ePlate").value=v.plate||""; equipmentDraft.plate=v.plate||""; saveEquipmentDraft(); }
   });
-  on(qs("#eCustomCode"),"input",function(){ equipmentDraft.vehicleCode = qs("#eCustomCode").value; saveEquipmentDraft(); });
 
   qsa("#eqItems .mini input, #eqItems .notes input").forEach(function(inp){
-    on(inp,"input",function(){
-      var m = inp.id.match(/^eq-(.+)-(req|have|notes)$/);
-      if(!m) return;
-      var itemId=m[1], field=m[2];
-      equipmentDraft.items[itemId] = equipmentDraft.items[itemId] || {req:"",have:"",avail:"",cond:"",notes:""};
-      equipmentDraft.items[itemId][field] = inp.value;
-      saveEquipmentDraft();
-    });
+    on(inp,"input",function(){ var m=inp.id.match(/^eq-(.+)-(qty|notes)$/); if(!m)return; var itemId=m[1],field=m[2]; equipmentDraft.items[itemId]=equipmentDraft.items[itemId]||{qty:"",status:"",notes:""}; equipmentDraft.items[itemId][field]=inp.value; saveEquipmentDraft(); });
   });
-  wireSegControls(qs("#eqItems"), function(group,val){
-    var m = group.match(/^(eqa|eqc)-(.+)$/);
-    if(!m) return;
-    var itemId = m[2], field = m[1]==="eqa" ? "avail":"cond";
-    equipmentDraft.items[itemId] = equipmentDraft.items[itemId] || {req:"",have:"",avail:"",cond:"",notes:""};
-    equipmentDraft.items[itemId][field] = val;
-    saveEquipmentDraft();
-  });
+  wireSegControls(qs("#eqItems"),function(group,val){ var m=group.match(/^eqs-(.+)$/); if(!m)return; var itemId=m[1]; equipmentDraft.items[itemId]=equipmentDraft.items[itemId]||{qty:"",status:"",notes:""}; equipmentDraft.items[itemId].status=val; saveEquipmentDraft(); });
+  qsa('[data-photoinput^="ephoto-"]').forEach(function(inp){ on(inp,"change",function(){ var file=inp.files&&inp.files[0]; if(!file)return; var slotId=inp.getAttribute("data-photoinput").replace("ephoto-",""); handlePhotoUpload("ephoto",slotId,file,equipmentDraft,saveEquipmentDraft); }); });
 
   function wireExtraRows(){
     qsa("#extraItems .mini input, #extraItems .notes input").forEach(function(inp){
       on(inp,"input",function(){
-        var m = inp.id.match(/^ex-(\d+)-(name|req|have|notes)$/);
+        var m = inp.id.match(/^ex-(\d+)-(name|qty|notes)$/);
         if(!m) return;
         var i=+m[1], field=m[2];
         equipmentDraft.extraItems[i] = equipmentDraft.extraItems[i] || {};
@@ -1152,9 +1139,9 @@ function wireEquipmentForm(){
       });
     });
     wireSegControls(qs("#extraItems"), function(group,val){
-      var m = group.match(/^(exa|exc)-(\d+)$/);
+      var m = group.match(/^exs-(\d+)$/);
       if(!m) return;
-      var i=+m[2], field = m[1]==="exa" ? "avail":"cond";
+      var i=+m[1], field = "status";
       equipmentDraft.extraItems[i] = equipmentDraft.extraItems[i] || {};
       equipmentDraft.extraItems[i][field] = val;
       saveEquipmentDraft();
@@ -1171,7 +1158,7 @@ function wireEquipmentForm(){
     });
   }
   function addExtraRow(){
-    equipmentDraft.extraItems.push({name:"",req:"",have:"",avail:"",cond:"",notes:""});
+    equipmentDraft.extraItems.push({name:"",qty:"",status:"",notes:""});
     saveEquipmentDraft();
     qs("#extraItems").innerHTML = extraItemsHTML(equipmentDraft.extraItems) + '<button class="btn btn-outline btn-sm" id="addExtra" type="button">'+bi("+ إضافة معدة","+ Add Equipment")+'</button>';
     on(qs("#addExtra"),"click",addExtraRow);
@@ -1198,10 +1185,11 @@ function wireEquipmentForm(){
 
 async function submitEquipmentReport(){
   var d = equipmentDraft;
-  var code = (d.vehicleCode==="__custom__" ? "" : d.vehicleCode) || qs("#eCustomCode").value;
+  var code = (d.vehicleCode||"").trim();
   code = (code||"").trim();
-  if(!code){ showToast("يرجى اختيار أو إدخال كود المركبة","Please select or enter a vehicle code"); return; }
+  if(!code){ showToast("يرجى اختيار كود المركبة","Please select a vehicle code"); return; }
   if(!d.date){ showToast("يرجى تحديد التاريخ","Please set the date"); return; }
+  for(var ei=0;ei<EQUIPMENT_ITEMS.length;ei++){ var eid=EQUIPMENT_ITEMS[ei][0], item=d.items[eid]||{}; if(!item.status){ showToast("حدد حالة جميع المعدات","Select a status for every equipment item"); return; } if(item.status!=="missing" && (!d.photos[eid]||!d.photos[eid].id)){ showToast("صورة كل معدة موجودة مطلوبة","A photo is required for every equipment item that is present"); return; } if(item.status!=="missing" && (item.qty===""||Number(item.qty)<1)){ showToast("أدخل العدد لكل معدة موجودة","Enter quantity for every equipment item that is present"); return; } }
   if(!d.supervisorName || !d.supervisorName.trim()){ showToast("يرجى إدخال اسم المشرف","Please enter the supervisor name"); return; }
   if(!state.dbns){ showToast("قاعدة البيانات غير متاحة حاليًا","Database unavailable right now"); return; }
 
@@ -1209,7 +1197,7 @@ async function submitEquipmentReport(){
   var payload = {
     vehicleCode: code, plate:d.plate||"", city:d.city||"", driverTech:d.driverTech||"",
     supervisorName:d.supervisorName||"", date:d.date, odometer:d.odometer||"",
-    items: d.items, extraItems: d.extraItems||[], readiness: d.readiness,
+    items: d.items, extraItems: d.extraItems||[], photos:d.photos||{}, readiness: d.readiness,
     missingNotes:d.missingNotes||"", maintenanceNotes:d.maintenanceNotes||"", requiredAction:d.requiredAction||"",
     finalEvaluation:d.finalEvaluation||"", technicianName:d.technicianName||"",
     createdAt: new Date().toISOString(), createdBy: state.myId
@@ -1345,19 +1333,9 @@ function buildDetailHTML(type, r, submitter){
     if(r.faults) out += '<p><b>'+bi("الأعطال / الملاحظات","Faults / Remarks")+'</b><br>'+esc(r.faults)+'</p>';
     if(r.requiredAction) out += '<p><b>'+bi("الإجراء المطلوب","Required Action")+'</b><br>'+esc(r.requiredAction)+'</p>';
   } else {
-    out += '<table class="rep-table"><thead><tr><th>'+("المعدة / Equipment")+'</th><th>'+("مطلوبة/موجودة")+'</th><th>'+("التوفر / Availability")+'</th><th>'+("الحالة / Condition")+'</th><th>'+("ملاحظات / Notes")+'</th></tr></thead><tbody>'+
-      EQUIPMENT_ITEMS.map(function(it){
-        var c = (r.items||{})[it[0]]||{};
-        var at = AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
-        var ct = COND2.filter(function(t){return t[0]===c.cond;})[0];
-        return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+esc(c.req||"-")+' / '+esc(c.have||"-")+'</td><td>'+(at?'<span class="badge '+at[3]+'">'+esc(at[1])+'</span>':"—")+'</td><td>'+(ct?'<span class="badge '+ct[3]+'">'+esc(ct[1])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>';
-      }).join("")+
-      (r.extraItems||[]).map(function(c){
-        var at = AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
-        var ct = COND2.filter(function(t){return t[0]===c.cond;})[0];
-        return '<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.req||"-")+' / '+esc(c.have||"-")+'</td><td>'+(at?'<span class="badge '+at[3]+'">'+esc(at[1])+'</span>':"—")+'</td><td>'+(ct?'<span class="badge '+ct[3]+'">'+esc(ct[1])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>';
-      }).join("")+
-    '</tbody></table>';
+    out += '<table class="rep-table"><thead><tr><th>المعدة / Equipment</th><th>العدد / Quantity</th><th>الحالة / Status</th><th>ملاحظات / Notes</th></tr></thead><tbody>'+
+      EQUIPMENT_ITEMS.map(function(it){ var c=(r.items||{})[it[0]]||{}; var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+esc(c.qty||"0")+'</td><td>'+(st?'<span class="badge '+st[3]+'">'+esc(st[1])+' / '+esc(st[2])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>'; }).join("")+
+      (r.extraItems||[]).map(function(c){ var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; return '<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.qty||"0")+'</td><td>'+(st?esc(st[1])+' / '+esc(st[2]):"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>'; }).join("")+'</tbody></table>';
     out += '<div class="section-bar" style="margin-top:12px">'+bi("حالة ترتيب وتجهيز السيارة","Vehicle Readiness")+'</div>';
     out += '<table class="rep-table"><tbody>'+READINESS_ITEMS.map(function(it){
       var v = (r.readiness||{})[it[0]];
@@ -1423,18 +1401,9 @@ function exportReportCSV(type, r, submitter){
     rows.push(["الأعطال / الملاحظات", r.faults||""]);
     rows.push(["الإجراء المطلوب / Required Action", r.requiredAction||""]);
   } else {
-    rows.push(["المعدة / Equipment","مطلوبة / Req.","موجودة / Have","التوفر / Availability","الحالة / Condition","ملاحظات / Notes"]);
-    EQUIPMENT_ITEMS.forEach(function(it){
-      var c=(r.items||{})[it[0]]||{};
-      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
-      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
-      rows.push([it[1]+" / "+it[2], c.req||"", c.have||"", at?at[1]+"/"+at[2]:"", ct?ct[1]+"/"+ct[2]:"", c.notes||""]);
-    });
-    (r.extraItems||[]).forEach(function(c){
-      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
-      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
-      rows.push([c.name||"", c.req||"", c.have||"", at?at[1]+"/"+at[2]:"", ct?ct[1]+"/"+ct[2]:"", c.notes||""]);
-    });
+    rows.push(["المعدة / Equipment","العدد / Quantity","الحالة / Status","ملاحظات / Notes"]);
+    EQUIPMENT_ITEMS.forEach(function(it){ var c=(r.items||{})[it[0]]||{}; var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; rows.push([it[1]+" / "+it[2],c.qty||"",st?st[1]+" / "+st[2]:"",c.notes||""]); });
+    (r.extraItems||[]).forEach(function(c){ var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; rows.push([c.name||"",c.qty||"",st?st[1]+" / "+st[2]:"",c.notes||""]); });
     rows.push([]);
     rows.push(["البند / Readiness Item","الحالة / Status"]);
     READINESS_ITEMS.forEach(function(it){
@@ -1453,6 +1422,11 @@ function exportReportCSV(type, r, submitter){
   var fname = (type==="vehicle"?"vehicle-report-":"equipment-report-")+(r.vehicleCode||"x")+"-"+(type==="vehicle"?r.inspectionDate:r.date)+".csv";
   saveFile(fname, csv, "text/csv");
 }
+
+
+function previousVehicleReport(r){ return state.vReports.filter(function(x){return x.vehicleCode===r.vehicleCode && x.id!==r.id && String(x.inspectionDate||x.createdAt||"") < String(r.inspectionDate||r.createdAt||"");}).sort(function(a,b){return String(b.inspectionDate||b.createdAt||"").localeCompare(String(a.inspectionDate||a.createdAt||""));})[0]||null; }
+function previousEquipmentReport(r){ return state.eReports.filter(function(x){return x.vehicleCode===r.vehicleCode && x.id!==r.id && String(x.date||x.createdAt||"") < String(r.date||r.createdAt||"");}).sort(function(a,b){return String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""));})[0]||null; }
+function oilSummary(r,prev){ var odo=Number(r.odometer), oilOdo=Number(r.oilLastOdometer); var since=(odo&&oilOdo)?odo-oilOdo:null; var moved=(prev&&odo&&Number(prev.odometer))?odo-Number(prev.odometer):null; var remaining=since===null?null:3000-since; return {moved:moved,since:since,remaining:remaining}; }
 
 function buildPrintSheet(type, r, submitter){
   var wrap = document.createElement("div");
@@ -1486,6 +1460,7 @@ function buildPrintSheet(type, r, submitter){
       ["المدينة / City", r.city],["نوع المركبة / Type", r.vehicleType],["رقم اللوحة / Plate", r.plate],["الوقود / Fuel", r.fuel],
       ["السائق / Driver", r.driverName],["العداد / Odometer", r.odometer],["المشرف / Supervisor", r.supervisorName],["أُرسل بواسطة / By", submitter]
     ]);
+    var pv=previousVehicleReport(r), os=oilSummary(r,pv); body += sectionBar("حركة المركبة والزيت","Vehicle Mileage & Oil"); body += kvTable([["المسافة منذ التقرير السابق / Distance Since Previous Report", os.moved===null?"—":os.moved+" km"],["المسافة منذ تغيير الزيت / KM Since Oil Change", os.since===null?"—":os.since+" km"],["المتبقي حتى 3000 كم / Remaining to 3,000 KM", os.remaining===null?"—":(os.remaining>=0?os.remaining+" km":"تجاوز بـ "+Math.abs(os.remaining)+" km / Overdue by "+Math.abs(os.remaining)+" km")],["فلتر الهواء / Air Filter",fmtDate(r.airFilterDate)],["فلتر الزيت / Oil Filter",fmtDate(r.oilFilterDate)]]); if(os.remaining!==null && os.remaining<=500) body += '<div style="margin-top:7px;padding:7px;background:#FBE8E5;color:#C1402E;font-weight:800;border-radius:6px">تنبيه زيت المحرك / ENGINE OIL ALERT: '+(os.remaining<0?'متجاوز / OVERDUE '+Math.abs(os.remaining)+' km':'متبقي / REMAINING '+os.remaining+' km')+'</div>';
     body += sectionBar("جدول الفحص الفني","Technical Inspection");
     var tr = '<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:6px"><thead><tr>'+
       '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:5px">م</th>'+
@@ -1495,11 +1470,13 @@ function buildPrintSheet(type, r, submitter){
     VEHICLE_CHECK_ITEMS.forEach(function(it,i){
       var c=(r.checklist||{})[it[0]]||{};
       var tone=TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
-      var col = tone? (tone[0]==="sound"?"#2E8B57":tone[0]==="followup"?"#B07A1C":"#C1402E") : "#999";
+      var prev=previousVehicleReport(r), pc=prev&&prev.checklist?(prev.checklist[it[0]]||{}):{}; var changed=!!(pc.status && c.status && pc.status!==c.status);
+      var col = changed ? "#C1402E" : (tone? (tone[0]==="sound"?"#2E8B57":tone[0]==="followup"?"#B07A1C":"#C1402E") : "#999");
+      var changeNote=changed ? ('<div style="color:#C1402E;font-weight:800">تغيرت الحالة / Status changed: '+esc(pc.status)+' → '+esc(c.status)+'</div>') : '';
       tr += '<tr><td style="border:1px solid #D7E2D2;padding:4px;text-align:center">'+(i+1)+'</td>'+
         '<td style="border:1px solid #D7E2D2;padding:4px">'+esc(it[1])+' / '+esc(it[2])+'</td>'+
         '<td style="border:1px solid #D7E2D2;padding:4px;text-align:center;color:'+col+';font-weight:700">'+(tone?esc(tone[1]):"—")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:4px">'+esc(c.notes||"")+'</td></tr>';
+        '<td style="border:1px solid #D7E2D2;padding:4px">'+changeNote+esc(c.notes||"")+'</td></tr>';
     });
     tr += '</tbody></table>';
     body += tr;
@@ -1521,32 +1498,15 @@ function buildPrintSheet(type, r, submitter){
     var tr2 = '<table style="width:100%;border-collapse:collapse;font-size:9.5px;margin-top:6px"><thead><tr>'+
       '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">م</th>'+
       '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px;text-align:start">المعدة</th>'+
-      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">مطلوبة/موجودة</th>'+
-      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">التوفر</th>'+
-      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">الحالة</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">العدد / Qty</th>'+
+      '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px">الحالة / Status</th>'+
       '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:4px;text-align:start">ملاحظات</th></tr></thead><tbody>';
     var idx=1;
     EQUIPMENT_ITEMS.forEach(function(it){
-      var c=(r.items||{})[it[0]]||{};
-      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
-      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
-      tr2 += '<tr><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(idx++)+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(it[1])+' / '+esc(it[2])+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+esc(c.req||"-")+'/'+esc(c.have||"-")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(at?esc(at[1]):"—")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(ct?esc(ct[1]):"—")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.notes||"")+'</td></tr>';
+      var c=(r.items||{})[it[0]]||{}; var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; var pe=previousEquipmentReport(r), pc=pe&&pe.items?(pe.items[it[0]]||{}):{}; var changed=!!(pc.status&&c.status&&pc.status!==c.status);
+      tr2 += '<tr><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(idx++)+'</td><td style="border:1px solid #D7E2D2;padding:3px">'+esc(it[1])+' / '+esc(it[2])+'</td><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+esc(c.qty||"0")+'</td><td style="border:1px solid #D7E2D2;padding:3px;text-align:center;color:'+(changed?'#C1402E':'#16201a')+';font-weight:700">'+(st?esc(st[1])+' / '+esc(st[2]):'—')+(changed?' — CHANGED':'')+'</td><td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.notes||"")+'</td></tr>';
     });
-    (r.extraItems||[]).forEach(function(c){
-      var at=AVAIL2.filter(function(t){return t[0]===c.avail;})[0];
-      var ct=COND2.filter(function(t){return t[0]===c.cond;})[0];
-      tr2 += '<tr><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(idx++)+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.name||"")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+esc(c.req||"-")+'/'+esc(c.have||"-")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(at?esc(at[1]):"—")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(ct?esc(ct[1]):"—")+'</td>'+
-        '<td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.notes||"")+'</td></tr>';
-    });
+    (r.extraItems||[]).forEach(function(c){ var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; tr2 += '<tr><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(idx++)+'</td><td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.name||"")+'</td><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+esc(c.qty||"0")+'</td><td style="border:1px solid #D7E2D2;padding:3px;text-align:center">'+(st?esc(st[1])+' / '+esc(st[2]):'—')+'</td><td style="border:1px solid #D7E2D2;padding:3px">'+esc(c.notes||"")+'</td></tr>'; });
     tr2 += '</tbody></table>';
     body += tr2;
     body += sectionBar("حالة ترتيب وتجهيز السيارة","Vehicle Readiness");
@@ -1613,6 +1573,67 @@ async function exportReportPDF(type, r, submitter){
 }
 
 /* ========================================================================
+   AUTH + USER MANAGEMENT
+   ======================================================================== */
+function loginHTML(){
+  return '<div class="auth-wrap"><div class="auth-card"><h2>تسجيل الدخول</h2><div class="en">Fleet System Login</div>'+ 
+    '<div class="field"><label class="bi">البريد الإلكتروني</label><input id="loginEmail" type="email" autocomplete="username"></div>'+ 
+    '<div class="field"><label class="bi">كلمة المرور</label><input id="loginPass" type="password" autocomplete="current-password"></div>'+ 
+    '<div class="btn-row" style="margin-top:16px"><button class="btn btn-primary" id="loginBtn">دخول</button></div><div id="loginErr" class="hint"></div></div></div>';
+}
+function showLogin(){
+  qs("#app").innerHTML=loginHTML();
+  on(qs("#loginBtn"),"click",async function(){
+    var e=qs("#loginEmail").value.trim(), p=qs("#loginPass").value;
+    try{ await state.auth.signInWithEmailAndPassword(e,p); }catch(err){ qs("#loginErr").textContent="تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور."; }
+  });
+}
+function usersHTML(){
+  if(!state.currentProfile||state.currentProfile.role!=="admin") return '<div class="empty-state">غير مصرح</div>';
+  var rows=state.users.map(function(u){return '<div class="user-row"><div><b>'+esc(u.name||u.email||u.id)+'</b><div class="meta">'+esc(u.email||'')+' • '+esc(u.role||'')+' • '+esc(u.city||'all')+'</div></div><span class="badge '+(u.active===false?'danger':'ok')+'">'+(u.active===false?'معطل':'نشط')+'</span></div>';}).join('');
+  return '<div class="card"><div class="section-bar">إدارة المستخدمين <span class="en">User Management</span></div>'+ 
+   '<div class="grid grid-2"><div class="field"><label class="bi">الاسم</label><input id="uName" type="text"></div><div class="field"><label class="bi">البريد</label><input id="uEmail" type="email"></div>'+ 
+   '<div class="field"><label class="bi">كلمة المرور المؤقتة</label><input id="uPass" type="password" minlength="6"></div><div class="field"><label class="bi">الصلاحية</label><select id="uRole"><option value="driver">فني / سائق</option><option value="supervisor">مشرف</option><option value="admin">مدير النظام</option></select></div>'+ 
+   '<div class="field"><label class="bi">المدينة</label><select id="uCity"><option value="Jeddah">جدة</option><option value="Riyadh">الرياض</option><option value="Makkah">مكة</option><option value="all">جميع المدن</option></select></div><div class="field"><label class="bi">المركبة (اختياري)</label><select id="uVehicle"><option value="">—</option>'+state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'">'+esc(v.code)+'</option>';}).join('')+'</select></div></div>'+ 
+   '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="createUserBtn">إنشاء الحساب</button></div><div id="uMsg" class="hint"></div></div><div class="card"><h3>الحسابات الحالية</h3><div class="users-list">'+(rows||'<div class="empty-state">لا توجد حسابات</div>')+'</div></div>';
+}
+function wireUsers(){
+  var b=qs("#createUserBtn"); if(!b)return;
+  on(b,"click",async function(){
+    var name=qs("#uName").value.trim(), email=qs("#uEmail").value.trim(), pass=qs("#uPass").value, role=qs("#uRole").value, city=qs("#uCity").value, vehicleCode=qs("#uVehicle").value;
+    if(!name||!email||pass.length<6){ qs("#uMsg").textContent="أدخل الاسم والبريد وكلمة مرور 6 أحرف على الأقل."; return; }
+    b.disabled=true;
+    try{
+      var appName="userCreator"+Date.now(); var secondary=firebase.initializeApp(FIREBASE_CONFIG,appName); var a=secondary.auth();
+      var cred=await a.createUserWithEmailAndPassword(email,pass); var uid=cred.user.uid; await a.signOut(); await secondary.delete();
+      await state.dbns.collection("users").doc(uid).set({name:name,email:email,role:role,city:city,vehicleCode:vehicleCode||null,active:true,createdAt:new Date().toISOString(),createdBy:state.currentUser.uid});
+      qs("#uMsg").textContent="تم إنشاء الحساب بنجاح.";
+    }catch(e){ qs("#uMsg").textContent="تعذر إنشاء الحساب: "+(e.message||e.code||e); }
+    finally{ b.disabled=false; }
+  });
+}
+function subscribeForProfile(){
+  if(!state.dbns||!state.currentUser)return;
+  state.dbns.collection("users").doc(state.currentUser.uid).get().then(function(doc){
+    if(!doc.exists) throw new Error("profile-missing");
+    state.currentProfile=doc.data()||{}; state.currentProfile.id=doc.id;
+    if(state.currentProfile.active===false) throw new Error("inactive");
+    renderShell(); startDataSubscriptions();
+  }).catch(function(){ state.auth.signOut(); alert("الحساب غير مفعّل في قاعدة المستخدمين."); });
+}
+function startDataSubscriptions(){
+  if(!state.dbns)return;
+  state.dbns.collection("vehicles").onSnapshot(function(snap){
+    var all=snap.docs.map(function(d){var b=d.data()||{};b.code=d.id;return b;}).filter(function(v){return v.active!==false;});
+    var p=state.currentProfile||{}; if(p.role==="driver"&&p.vehicleCode) all=all.filter(function(v){return v.code===p.vehicleCode;}); else if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
+    state.vehicles=all.sort(function(a,b){return (a.code||"").localeCompare(b.code||"");}); state.vehiclesLoaded=true; if(state.tab==="dashboard"||state.tab==="history"||state.tab==="users")renderTab(); else refreshCodeSelectsOnly();
+  });
+  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){state.vReports=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
+  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){state.eReports=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="dashboard"||state.tab==="history")renderTab();});
+  if(state.currentProfile.role==="admin") state.dbns.collection("users").onSnapshot(function(snap){state.users=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="users")renderTab();});
+}
+
+/* ========================================================================
    DATA INIT: capabilities + subscriptions
    ======================================================================== */
 function initCapabilities(){
@@ -1625,34 +1646,13 @@ function initCapabilities(){
     }
   }catch(e){ state.dbns = null; }
   state.assetsns = null; state.downloadsns = null; state.userns = null; state.myId = null;
-
-  var badge = qs("#connBadge");
-  if(badge){
-    if(state.dbns) badge.innerHTML = bi("متصل","Connected");
-    else badge.innerHTML = bi("وضع القراءة فقط","Read-only mode");
-  }
-
-  if(!state.dbns){ state.vehiclesLoaded = true; state.reportsLoaded = true; renderTab(); return; }
-
-  state.dbns.collection("vehicles").onSnapshot(function(snap){
-    state.vehicles = snap.docs.map(function(d){ var b=d.data()||{}; b.code=d.id; return b; })
-      .filter(function(v){ return v.active!==false; })
-      .sort(function(a,b){ return (a.code||"").localeCompare(b.code||""); });
-    state.vehiclesLoaded = true;
-    if(state.tab==="dashboard"||state.tab==="history") renderTab();
-    else refreshCodeSelectsOnly();
-  }, function(){ state.vehiclesLoaded = true; });
-
-  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){
-    state.vReports = snap.docs.map(function(d){ var b=d.data()||{}; b.id=d.id; return b; });
-    state.reportsLoaded = true;
-    if(state.tab==="dashboard"||state.tab==="history") renderTab();
-  }, function(){ state.reportsLoaded = true; });
-
-  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){
-    state.eReports = snap.docs.map(function(d){ var b=d.data()||{}; b.id=d.id; return b; });
-    if(state.tab==="dashboard"||state.tab==="history") renderTab();
-  }, function(){});
+  if(!state.dbns){ renderShell(); var badge=qs("#connBadge"); if(badge) badge.innerHTML=bi("غير متصل","Offline"); return; }
+  state.auth=firebase.auth();
+  state.auth.onAuthStateChanged(function(user){
+    state.currentUser=user||null; state.currentProfile=null; state.users=[];
+    if(!user){ showLogin(); return; }
+    state.myId=user.uid; subscribeForProfile();
+  });
 }
 
 function refreshCodeSelectsOnly(){
@@ -1667,7 +1667,7 @@ function refreshCodeSelectsOnly(){
 function boot(){
   var hash = (location.hash||"").replace("#","");
   if(TABS.some(function(t){return t[0]===hash;})) state.tab = hash;
-  renderShell();
+  qs("#app").innerHTML='<div class="auth-wrap"><div class="auth-card">جارٍ التحميل…</div></div>';
   initCapabilities();
 }
 if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded", boot); } else { boot(); }
