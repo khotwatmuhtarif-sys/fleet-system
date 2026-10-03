@@ -577,7 +577,25 @@ function evalBadge(code, table){
   return '<span class="badge '+row[3]+'">'+esc(row[1])+'</span>';
 }
 
+function driverDashboardHTML(){
+  var p=state.currentProfile||{};
+  var code=p.vehicleCode||"";
+  var v=state.vehicles.filter(function(x){return x.code===code;})[0] || state.vehicles[0] || null;
+  if(!v){
+    return '<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("لا توجد مركبة مرتبطة بحسابك","No vehicle assigned to your account")+'</div></div>';
+  }
+  var lr=latestReportFor(v.code,state.vReports), le=latestReportFor(v.code,state.eReports);
+  var recent=state.vReports.map(function(r){return {type:"vehicle",r:r};}).concat(state.eReports.map(function(r){return {type:"equipment",r:r};})).filter(function(x){return x.r.vehicleCode===v.code;}).sort(function(a,b){return (b.r.createdAt||"")>(a.r.createdAt||"")?1:-1;}).slice(0,5);
+  return '<div class="section-bar leaf">'+bi("مركبتي","My Vehicle")+'</div>'+
+    '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+esc(v.city||"")+' · '+esc(v.vehicleType||v.type||"")+(v.plate?' · '+esc(v.plate):'')+'</div></div></div>'+
+    '<div class="veh-rows"><div class="r"><span class="k">'+bi("آخر فحص مركبة","Last Vehicle Check")+'</span>'+(lr?evalFromCodeBadge(lr.evaluation,VEHICLE_EVAL):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div>'+
+    '<div class="r"><span class="k">'+bi("آخر فحص معدات","Last Equipment Check")+'</span>'+(le?evalFromCodeBadge(le.finalEvaluation,EQUIP_EVAL):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div></div>'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" data-newveh="'+esc(v.code)+'">'+bi("رفع تقرير مركبة","Vehicle Report")+'</button><button class="btn btn-leaf btn-sm" data-neweq="'+esc(v.code)+'">'+bi("رفع تقرير معدات","Equipment Report")+'</button></div></div>'+
+    '<div class="section-bar" style="margin-top:16px">'+bi("تقاريري الأخيرة","My Recent Reports")+'</div><div>'+(recent.length?recent.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>')+'</div>';
+}
+
 function dashboardHTML(){
+  if(state.currentProfile && state.currentProfile.role==="driver") return driverDashboardHTML();
   var vehicles = state.vehicles;
   var vReports = state.vReports, eReports = state.eReports;
   var maintCount = 0;
@@ -1628,8 +1646,8 @@ function startDataSubscriptions(){
     var p=state.currentProfile||{}; if(p.role==="driver"&&p.vehicleCode) all=all.filter(function(v){return v.code===p.vehicleCode;}); else if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
     state.vehicles=all.sort(function(a,b){return (a.code||"").localeCompare(b.code||"");}); state.vehiclesLoaded=true; if(state.tab==="dashboard"||state.tab==="history"||state.tab==="users")renderTab(); else refreshCodeSelectsOnly();
   });
-  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){state.vReports=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
-  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){state.eReports=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="dashboard"||state.tab==="history")renderTab();});
+  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver"&&p.vehicleCode)all=all.filter(function(r){return r.vehicleCode===p.vehicleCode;});state.vReports=all;state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
+  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver"&&p.vehicleCode)all=all.filter(function(r){return r.vehicleCode===p.vehicleCode;});state.eReports=all;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
   if(state.currentProfile.role==="admin") state.dbns.collection("users").onSnapshot(function(snap){state.users=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="users")renderTab();});
 }
 
