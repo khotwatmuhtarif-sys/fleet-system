@@ -443,7 +443,8 @@ var state = {
   profiles: {},
   myId: null,
   overlay: null, /* {type,report} */
-  auth:null, currentUser:null, currentProfile:null, users:[]
+  auth:null, currentUser:null, currentProfile:null, users:[],
+  appUpdate:null
 };
 
 function freshVehicleDraft(){
@@ -501,6 +502,7 @@ function renderShell(){
       '<img class="appbar-logo" src="'+LOGO_DATA_URL+'" alt="Professional Step logo">'+
       '<div class="appbar-titles"><b>أسطول خطوة محترف</b><span class="sub">Professional Step Fleet &amp; Equipment</span></div>'+
       '<div class="appbar-spacer"></div>'+
+      '<button class="btn btn-primary btn-sm" id="updateBtn" hidden>🔄 تحديث جديد / New Update</button>'+
       '<div class="user-chip" id="userChip"></div>'+
       '<button class="btn btn-ghost btn-sm" id="logoutBtn">خروج</button>'+
       '<div class="appbar-badge" id="connBadge">'+bi("جارٍ الاتصال…","Connecting…")+'</div>'+
@@ -516,7 +518,7 @@ function renderShell(){
 
 function renderTabbar(){
   var bar = qs("#tabbar");
-  var visibleTabs=TABS.filter(function(t){ return t[0]!=="users" || (state.currentProfile&&state.currentProfile.role==="admin"); });
+  var visibleTabs=TABS.filter(function(t){ if(state.currentProfile&&state.currentProfile.role==="driver"&&!state.currentProfile.vehicleCode) return t[0]==="dashboard"; return t[0]!=="users" || (state.currentProfile&&state.currentProfile.role==="admin"); });
   bar.innerHTML = visibleTabs.map(function(t){
     return '<button class="tab" role="tab" data-tab="'+t[0]+'" aria-selected="'+(state.tab===t[0])+'">'+
       '<span class="ar">'+esc(t[1])+'</span><span class="en">'+esc(t[2])+'</span></button>';
@@ -580,7 +582,7 @@ function evalBadge(code, table){
 function driverDashboardHTML(){
   var p=state.currentProfile||{};
   var code=p.vehicleCode||"";
-  var v=state.vehicles.filter(function(x){return x.code===code;})[0] || state.vehicles[0] || null;
+  var v=code ? (state.vehicles.filter(function(x){return x.code===code;})[0] || null) : null;
   if(!v){
     return '<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("لا توجد مركبة مرتبطة بحسابك","No vehicle assigned to your account")+'</div></div>';
   }
@@ -649,6 +651,7 @@ function dashboardHTML(){
         '<div class="btn-row">'+
           '<button class="btn btn-outline btn-sm" data-newveh="'+esc(v.code)+'">'+bi("+ تقرير مركبة","+ Vehicle")+'</button>'+
           '<button class="btn btn-outline btn-sm" data-neweq="'+esc(v.code)+'">'+bi("+ تقرير معدات","+ Equipment")+'</button>'+
+          ((state.currentProfile&&state.currentProfile.role==="admin")?'<button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger)" data-delveh="'+esc(v.code)+'">حذف المركبة / Delete</button>':'')+
         '</div>'+
       '</div>';
     }).join("")+'</div>';
@@ -719,6 +722,19 @@ function wireDashboard(){
       showToast("تمت إضافة المركبة","Vehicle added");
     }catch(e){ showToast("تعذرت الإضافة","Could not add vehicle"); }
   });
+  qsa("[data-delveh]").forEach(function(b){ on(b,"click",async function(){
+    if(!state.currentProfile || state.currentProfile.role!=="admin") return;
+    var code=b.getAttribute("data-delveh");
+    if(!confirm("حذف المركبة "+code+"؟ سيتم فك ربطها من حسابات الفنيين، ولن تُحذف التقارير القديمة.")) return;
+    try{
+      var batch=state.dbns.batch();
+      batch.delete(state.dbns.collection("vehicles").doc(code));
+      var us=await state.dbns.collection("users").where("vehicleCode","==",code).get();
+      us.forEach(function(d){ batch.update(d.ref,{vehicleCode:null}); });
+      await batch.commit();
+      showToast("تم حذف المركبة وفك ربطها من الحسابات","Vehicle deleted and unassigned");
+    }catch(e){ showToast("تعذر حذف المركبة","Could not delete vehicle"); }
+  });});
   qsa(".hist-row",qs("#main")).forEach(function(row){
     on(row,"click",function(){ openDetailFromRow(row); });
   });
@@ -1608,16 +1624,22 @@ function showLogin(){
 }
 function usersHTML(){
   if(!state.currentProfile||state.currentProfile.role!=="admin") return '<div class="empty-state">غير مصرح</div>';
-  var rows=state.users.map(function(u){return '<div class="user-row"><div><b>'+esc(u.name||u.email||u.id)+'</b><div class="meta">'+esc(u.email||'')+' • '+esc(u.role||'')+' • '+esc(u.city||'all')+'</div></div><span class="badge '+(u.active===false?'danger':'ok')+'">'+(u.active===false?'معطل':'نشط')+'</span></div>';}).join('');
+  var rows=state.users.map(function(u){
+    var opts='<option value="">— بدون مركبة / No vehicle —</option>'+state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'" '+(u.vehicleCode===v.code?'selected':'')+'>'+esc(v.code)+'</option>';}).join('');
+    return '<div class="user-row" style="align-items:flex-end"><div style="flex:1"><b>'+esc(u.name||u.email||u.id)+'</b><div class="meta">'+esc(u.email||'')+' • '+esc(u.role||'')+' • '+esc(u.city||'all')+'</div></div><div class="field" style="min-width:180px"><label class="bi">مركبة الفني / Assigned Vehicle</label><select data-userveh="'+esc(u.id)+'">'+opts+'</select></div><button class="btn btn-outline btn-sm" data-saveuserveh="'+esc(u.id)+'">حفظ الربط</button><span class="badge '+(u.active===false?'danger':'ok')+'">'+(u.active===false?'معطل':'نشط')+'</span></div>';
+  }).join('');
+  var ver=(state.appUpdate&&state.appUpdate.version)||'—';
   return '<div class="card"><div class="section-bar">إدارة المستخدمين <span class="en">User Management</span></div>'+ 
    '<div class="grid grid-2"><div class="field"><label class="bi">الاسم</label><input id="uName" type="text"></div><div class="field"><label class="bi">البريد</label><input id="uEmail" type="email"></div>'+ 
    '<div class="field"><label class="bi">كلمة المرور المؤقتة</label><input id="uPass" type="password" minlength="6"></div><div class="field"><label class="bi">الصلاحية</label><select id="uRole"><option value="driver">فني / سائق</option><option value="supervisor">مشرف</option><option value="admin">مدير النظام</option></select></div>'+ 
    '<div class="field"><label class="bi">المدينة</label><select id="uCity"><option value="Jeddah">جدة</option><option value="Riyadh">الرياض</option><option value="Makkah">مكة</option><option value="all">جميع المدن</option></select></div><div class="field"><label class="bi">المركبة (اختياري)</label><select id="uVehicle"><option value="">—</option>'+state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'">'+esc(v.code)+'</option>';}).join('')+'</select></div></div>'+ 
-   '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="createUserBtn">إنشاء الحساب</button></div><div id="uMsg" class="hint"></div></div><div class="card"><h3>الحسابات الحالية</h3><div class="users-list">'+(rows||'<div class="empty-state">لا توجد حسابات</div>')+'</div></div>';
+   '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="createUserBtn">إنشاء الحساب</button></div><div id="uMsg" class="hint"></div></div>'+ 
+   '<div class="card"><div class="section-bar leaf">إشعار تحديث النظام <span class="en">App Update Notice</span></div><div class="hint" style="margin-bottom:10px">الإصدار المنشور حاليًا: '+esc(ver)+' — بعد رفع الملف الجديد إلى GitHub اضغط «نشر تحديث». سيظهر للفني زر تحديث جديد، ويفتح نفس الرابط بأحدث نسخة.</div><div class="btn-row"><button class="btn btn-primary" id="publishUpdateBtn">نشر تحديث جديد / Publish Update</button></div></div>'+ 
+   '<div class="card"><h3>الحسابات الحالية</h3><div class="users-list">'+(rows||'<div class="empty-state">لا توجد حسابات</div>')+'</div></div>';
 }
 function wireUsers(){
-  var b=qs("#createUserBtn"); if(!b)return;
-  on(b,"click",async function(){
+  var b=qs("#createUserBtn");
+  if(b) on(b,"click",async function(){
     var name=qs("#uName").value.trim(), email=qs("#uEmail").value.trim(), pass=qs("#uPass").value, role=qs("#uRole").value, city=qs("#uCity").value, vehicleCode=qs("#uVehicle").value;
     if(!name||!email||pass.length<6){ qs("#uMsg").textContent="أدخل الاسم والبريد وكلمة مرور 6 أحرف على الأقل."; return; }
     b.disabled=true;
@@ -1628,6 +1650,16 @@ function wireUsers(){
       qs("#uMsg").textContent="تم إنشاء الحساب بنجاح.";
     }catch(e){ qs("#uMsg").textContent="تعذر إنشاء الحساب: "+(e.message||e.code||e); }
     finally{ b.disabled=false; }
+  });
+  qsa("[data-saveuserveh]").forEach(function(btn){ on(btn,"click",async function(){
+    var uid=btn.getAttribute("data-saveuserveh"), sel=qs('[data-userveh="'+uid+'"]');
+    try{ await state.dbns.collection("users").doc(uid).update({vehicleCode:(sel&&sel.value)||null}); showToast("تم تحديث ربط المركبة","Vehicle assignment updated"); }
+    catch(e){ showToast("تعذر تحديث الربط","Could not update assignment"); }
+  });});
+  var pub=qs("#publishUpdateBtn"); if(pub) on(pub,"click",async function(){
+    var version=new Date().toISOString();
+    try{ await state.dbns.collection("app_config").doc("fleet_app").set({version:version,publishedAt:version,publishedBy:state.currentUser.uid},{merge:true}); showToast("تم نشر إشعار التحديث لجميع المستخدمين","Update notice published"); }
+    catch(e){ showToast("تعذر نشر التحديث","Could not publish update"); }
   });
 }
 function subscribeForProfile(){
@@ -1643,12 +1675,24 @@ function startDataSubscriptions(){
   if(!state.dbns)return;
   state.dbns.collection("vehicles").onSnapshot(function(snap){
     var all=snap.docs.map(function(d){var b=d.data()||{};b.code=d.id;return b;}).filter(function(v){return v.active!==false;});
-    var p=state.currentProfile||{}; if(p.role==="driver"&&p.vehicleCode) all=all.filter(function(v){return v.code===p.vehicleCode;}); else if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
+    var p=state.currentProfile||{}; if(p.role==="driver") all=p.vehicleCode?all.filter(function(v){return v.code===p.vehicleCode;}):[]; else if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
     state.vehicles=all.sort(function(a,b){return (a.code||"").localeCompare(b.code||"");}); state.vehiclesLoaded=true; if(state.tab==="dashboard"||state.tab==="history"||state.tab==="users")renderTab(); else refreshCodeSelectsOnly();
   });
-  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver"&&p.vehicleCode)all=all.filter(function(r){return r.vehicleCode===p.vehicleCode;});state.vReports=all;state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
-  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver"&&p.vehicleCode)all=all.filter(function(r){return r.vehicleCode===p.vehicleCode;});state.eReports=all;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
+  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.vReports=all;state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
+  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.eReports=all;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
   if(state.currentProfile.role==="admin") state.dbns.collection("users").onSnapshot(function(snap){state.users=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="users")renderTab();});
+  state.dbns.collection("app_config").doc("fleet_app").onSnapshot(function(doc){
+    state.appUpdate=doc.exists?(doc.data()||{}):null;
+    var ver=state.appUpdate&&state.appUpdate.version, seen=safeLocalGet("ps_seen_app_version");
+    var ub=qs("#updateBtn");
+    if(ub){
+      if(ver && ver!==seen && state.currentProfile && state.currentProfile.role!=="admin"){
+        ub.hidden=false;
+        ub.onclick=function(){ safeLocalSet("ps_seen_app_version",ver); var u=new URL(location.href); u.searchParams.set("v",Date.now()); location.href=u.toString(); };
+      } else ub.hidden=true;
+    }
+    if(state.tab==="users" && state.currentProfile && state.currentProfile.role==="admin") renderTab();
+  });
 }
 
 /* ========================================================================
