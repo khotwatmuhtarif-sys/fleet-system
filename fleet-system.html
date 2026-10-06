@@ -729,7 +729,7 @@ function wireDriverVehicleManager(){
     if(!editing)body.createdAt=new Date().toISOString(); save.disabled=true;
     try{
       if(editing){var existing=await state.dbns.collection("vehicles").doc(c).get();if(!existing.exists||(existing.data().ownerUid&&existing.data().ownerUid!==state.currentUser.uid))throw new Error("not-owner");await state.dbns.collection("vehicles").doc(c).set(body,{merge:true});}
-      else{var chk=await state.dbns.collection("vehicles").doc(c).get();if(chk.exists){c=await findNextVehicleCode(city.value);code.value=c;body.code=c;}await state.dbns.collection("vehicles").doc(c).set(body);}
+      else{await state.dbns.collection("vehicles").doc(c).set(body);}
       state.currentProfile.vehicleCode=c; try{await state.dbns.collection("users").doc(state.currentUser.uid).update({vehicleCode:c});}catch(ignore){}
       showToast(editing?"تم حفظ تعديل المركبة":"تمت إضافة مركبتك",editing?"Vehicle changes saved":"Your vehicle was added"); renderTabbar();renderTab();
     }catch(e){showToast("تعذر حفظ بيانات المركبة","Could not save vehicle details");save.disabled=false;}
