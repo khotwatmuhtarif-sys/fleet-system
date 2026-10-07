@@ -489,6 +489,8 @@ function saveEquipmentDraft(){ safeLocalSet("ps_equipment_draft_v1", equipmentDr
 /* ========================================================================
    APP SHELL
    ======================================================================== */
+state.notifications = state.notifications || [];
+
 var TABS = [
   ["dashboard","الرئيسية","Dashboard"],
   ["vehicle","تقرير مركبة","Vehicle Report"],
@@ -520,7 +522,7 @@ function renderShell(){
 
 function renderTabbar(){
   var bar = qs("#tabbar");
-  var visibleTabs=TABS.filter(function(t){ if(state.currentProfile&&state.currentProfile.role==="driver"&&!state.currentProfile.vehicleCode) return t[0]==="dashboard"; return t[0]!=="users" || (state.currentProfile&&state.currentProfile.role==="admin"); });
+  var visibleTabs=TABS.filter(function(t){ var r=state.currentProfile&&state.currentProfile.role; if(r==="driver"&&!state.currentProfile.vehicleCode) return t[0]==="dashboard"; if(r==="supervisor") return t[0]==="dashboard" || t[0]==="history"; return t[0]!=="users" || r==="admin"; });
   bar.innerHTML = visibleTabs.map(function(t){
     return '<button class="tab" role="tab" data-tab="'+t[0]+'" aria-selected="'+(state.tab===t[0])+'">'+
       '<span class="ar">'+esc(t[1])+'</span><span class="en">'+esc(t[2])+'</span></button>';
@@ -538,6 +540,7 @@ function renderTabbar(){
 
 function renderTab(){
   var main = qs("#main");
+  if(state.currentProfile && state.currentProfile.role==="supervisor" && (state.tab==="vehicle" || state.tab==="equipment" || state.tab==="users")){ state.tab="dashboard"; location.hash="dashboard"; }
   if(state.tab==="dashboard") main.innerHTML = dashboardHTML();
   else if(state.tab==="vehicle") main.innerHTML = vehicleFormHTML();
   else if(state.tab==="equipment") main.innerHTML = equipmentFormHTML();
@@ -644,8 +647,33 @@ function driverDashboardHTML(){
     '<div class="section-bar" style="margin-top:16px">'+bi("الوثائق والتواريخ","Documents & Expiry Dates")+'</div><div class="grid grid-2">'+vehicleDocStatus('الاستمارة','Registration',v.registrationExpiry,v.registrationDoc)+vehicleDocStatus('الفحص الدوري','Periodic Inspection',v.inspectionExpiry,v.inspectionDoc)+vehicleDocStatus('التأمين','Insurance',v.insuranceExpiry,v.insuranceDoc)+vehicleDocStatus('رخصة القيادة','Driver License',v.driverLicenseExpiry,v.driverLicenseDoc)+'</div>'+ 
     '<div class="section-bar" style="margin-top:16px">'+bi("تقاريري الأخيرة","My Recent Reports")+'</div><div>'+(recent.length?recent.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>')+'</div>';
 }
+function reportStatusBadge(r){
+  var st=r.approvalStatus||"legacy";
+  if(st==="pending") return '<span class="badge warn">'+bi("بانتظار الاعتماد","Pending Approval")+'</span>';
+  if(st==="returned") return '<span class="badge danger">'+bi("معاد للتعديل","Returned for Revision")+'</span>';
+  if(st==="approved") return '<span class="badge ok">'+bi("معتمد","Approved")+'</span>';
+  return '<span class="badge neutral">'+bi("سابق","Legacy")+'</span>';
+}
+function vehicleProblemSummary(code){
+  var r=latestReportFor(code,state.vReports); if(!r) return bi("لا يوجد تقرير","No report yet");
+  var a=[]; Object.keys(r.checklist||{}).forEach(function(k){var c=r.checklist[k]||{};if(c.status==="maintenance"||c.status==="followup"){var it=VEHICLE_CHECK_ITEMS.filter(function(x){return x[0]===k;})[0];if(it)a.push(it[1]);}});
+  if(r.faults)a.push(r.faults); return a.length?esc(a.slice(0,3).join("، ")):bi("لا توجد مشاكل مسجلة","No reported issues");
+}
+function supervisorDashboardHTML(){
+  var pending=state.vReports.concat(state.eReports).filter(function(r){return r.approvalStatus==="pending";}).length;
+  var notices=(state.notifications||[]).slice(0,5);
+  var noticeHTML=notices.length?'<div class="section-bar leaf">'+bi("إشعارات النظام","System Notifications")+'</div><div class="card">'+notices.map(function(n){return '<div style="padding:9px 0;border-bottom:1px solid #e6ece4"><b>'+esc(n.titleAr||n.title||"إشعار")+'</b><div class="en">'+esc(n.titleEn||"")+'</div><div class="hint">'+esc(n.messageAr||n.message||"")+'</div></div>';}).join("")+'</div>':'';
+  var cards=state.vehicles.map(function(v){
+    var reports=state.vReports.concat(state.eReports).filter(function(r){return r.vehicleCode===v.code;});
+    var pend=reports.filter(function(r){return r.approvalStatus==="pending";}).length;
+    var last=reports.sort(function(a,b){return (b.createdAt||"").localeCompare(a.createdAt||"");})[0];
+    return '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+pendingValue(v.plate)+' · '+pendingValue(v.driverName)+'</div></div>'+ (pend?'<span class="badge warn">'+pend+' '+bi("بانتظار الاعتماد","Pending")+'</span>':'<span class="badge ok">'+bi("لا يوجد معلق","No Pending")+'</span>')+'</div><div class="veh-rows"><div class="r"><span class="k">'+bi("السائق","Driver")+'</span><span>'+pendingValue(v.driverName)+'</span></div><div class="r"><span class="k">'+bi("آخر تقرير","Last Report")+'</span><span>'+(last?fmtDate((last.createdAt||"").slice(0,10)):"—")+'</span></div><div class="r"><span class="k">'+bi("المشاكل المختصرة","Issue Summary")+'</span><span>'+vehicleProblemSummary(v.code)+'</span></div></div><div class="btn-row"><button class="btn btn-primary btn-sm" data-superveh="'+esc(v.code)+'">'+bi("فتح سجل المركبة","Open Vehicle Record")+'</button></div></div>';
+  }).join("");
+  return '<div class="stats"><div class="stat"><div class="num">'+state.vehicles.length+'</div><div class="lbl">'+bi("المركبات","Vehicles")+'</div></div><div class="stat '+(pending?'warn':'ok')+'"><div class="num">'+pending+'</div><div class="lbl">'+bi("بانتظار الاعتماد","Pending Approval")+'</div></div></div>'+noticeHTML+'<div class="section-bar">'+bi("لوحة متابعة المركبات","Vehicle Review Dashboard")+'</div><div class="grid grid-3">'+(cards||'<div class="empty-state">'+bi("لا توجد مركبات","No vehicles")+'</div>')+'</div>';
+}
 function dashboardHTML(){
   if(state.currentProfile && state.currentProfile.role==="driver") return driverDashboardHTML();
+  if(state.currentProfile && state.currentProfile.role==="supervisor") return supervisorDashboardHTML();
   var vehicles = state.vehicles;
   var vReports = state.vReports, eReports = state.eReports;
   var maintCount = 0;
@@ -771,6 +799,7 @@ function wireAdminVehicleEditor(){
 }
 
 function wireDashboard(){
+  qsa("[data-superveh]").forEach(function(b){on(b,"click",function(){openSupervisorVehicle(b.getAttribute("data-superveh"));});});
   var mvc=qs("#mvCity"), mvcod=qs("#mvCode"); if(mvc&&mvcod){ mvcod.value=nextVehicleCode(mvc.value); on(mvc,"change",function(){mvcod.value=nextVehicleCode(mvc.value);}); }
   qsa("[data-newveh]").forEach(function(b){ on(b,"click",function(){
     vehicleDraft.vehicleCode = b.getAttribute("data-newveh");
@@ -1154,7 +1183,7 @@ async function submitVehicleReport(){
     checklist: d.checklist, photos: photos,
     evaluation:d.evaluation||"", faults:d.faults||"", requiredAction:d.requiredAction||"",
     supervisorName:d.supervisorName||"", driverName2:d.driverName2||"", nextFollowup:d.nextFollowup||"",
-    createdAt: new Date().toISOString(), createdBy: state.myId
+    createdAt: new Date().toISOString(), createdBy: state.myId, approvalStatus:"pending", submittedByName:(state.currentProfile&&state.currentProfile.name)||""
   };
   try{
     await state.dbns.collection("vehicle_reports").add(payload);
@@ -1352,7 +1381,7 @@ async function submitEquipmentReport(){
     items: d.items, extraItems: d.extraItems||[], photos:d.photos||{}, readiness: d.readiness,
     missingNotes:d.missingNotes||"", maintenanceNotes:d.maintenanceNotes||"", requiredAction:d.requiredAction||"",
     finalEvaluation:d.finalEvaluation||"", technicianName:d.technicianName||"",
-    createdAt: new Date().toISOString(), createdBy: state.myId
+    createdAt: new Date().toISOString(), createdBy: state.myId, approvalStatus:"pending", submittedByName:(state.currentProfile&&state.currentProfile.name)||""
   };
   try{
     await state.dbns.collection("equipment_reports").add(payload);
@@ -1389,7 +1418,7 @@ function historyRowHTML(type,r){
   return '<div class="hist-row" data-id="'+esc(r.id)+'" data-type="'+type+'">'+
     '<div class="hist-icon">'+icon+'</div>'+
     '<div class="hist-main"><div class="t1">'+esc(title)+'</div><div class="t2">'+esc(dateTxt)+'</div></div>'+
-    badge+
+    reportStatusBadge(r)+badge+
   '</div>';
 }
 
@@ -1424,6 +1453,30 @@ function openDetailFromRow(row){
   openOverlay(type,r);
 }
 
+function openSupervisorVehicle(code){
+  var v=state.vehicles.filter(function(x){return x.code===code;})[0]||{};
+  var rows=state.vReports.map(function(r){return {type:"vehicle",r:r};}).concat(state.eReports.map(function(r){return {type:"equipment",r:r};})).filter(function(x){return x.r.vehicleCode===code;}).sort(function(a,b){return (b.r.createdAt||"").localeCompare(a.r.createdAt||"");});
+  var div=document.createElement("div");div.className="overlay";div.id="superVehicleOverlay";
+  div.innerHTML='<div class="overlay-panel"><div class="overlay-head"><button class="overlay-close" id="closeSuperVeh">✕</button><div style="font-weight:800">'+bi("سجل المركبة ","Vehicle Record ")+esc(code)+'</div></div><div class="kv">'+kvi("رقم اللوحة","Plate",v.plate)+kvi("السائق","Driver",v.driverName)+kvi("الكود","Code",code)+kvi("المشاكل الحالية","Current Issues",vehicleProblemSummary(code).replace(/<[^>]+>/g,""))+'</div><div class="section-bar">'+bi("التقارير","Reports")+'</div><div id="superVehReports">'+(rows.length?rows.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير","No reports")+'</div>')+'</div></div>';
+  document.body.appendChild(div);on(qs("#closeSuperVeh",div),"click",function(){div.remove();});
+  qsa(".hist-row",div).forEach(function(row){on(row,"click",function(){var id=row.getAttribute("data-id"),type=row.getAttribute("data-type"),list=type==="vehicle"?state.vReports:state.eReports,r=list.filter(function(x){return x.id===id;})[0];if(r)openOverlay(type,r);});});
+}
+async function notifyAfterApproval(r,type){
+  if(!state.dbns)return; var now=new Date().toISOString(),code=r.vehicleCode||"";
+  var base={createdAt:now,read:false,vehicleCode:code,reportId:r.id,reportType:type};
+  try{
+    await state.dbns.collection("notifications").add(Object.assign({},base,{recipientRole:"admin",titleAr:"تم اعتماد تقرير",titleEn:"Report Approved",messageAr:"تم اعتماد تقرير المركبة "+code+" بواسطة المشرف.",messageEn:"Vehicle "+code+" report was approved by the supervisor."}));
+    if(r.createdBy) await state.dbns.collection("notifications").add(Object.assign({},base,{recipientUid:r.createdBy,titleAr:"تم اعتماد تقريرك",titleEn:"Your Report Was Approved",messageAr:"تم اعتماد تقرير المركبة "+code+" وأصبح مقفلاً للتعديل.",messageEn:"Your report for vehicle "+code+" was approved and is now locked."}));
+  }catch(e){console.error(e);}
+}
+async function supervisorDecision(type,r,decision,div){
+  if(!state.currentProfile||state.currentProfile.role!=="supervisor")return;
+  var col=type==="vehicle"?"vehicle_reports":"equipment_reports", now=new Date().toISOString();
+  var notes=(qs("#supReviewNotes",div)||{}).value||"", action=(qs("#supRequiredAction",div)||{}).value||"", follow=(qs("#supFollowDate",div)||{}).value||"";
+  var body={supervisorNotes:notes,supervisorRequiredAction:action,supervisorFollowupDate:follow,reviewedBy:state.currentUser.uid,reviewedByName:(state.currentProfile.name||state.currentUser.email||""),reviewedAt:now,approvalStatus:decision};
+  try{await state.dbns.collection(col).doc(r.id).set(body,{merge:true});if(decision==="approved"){await notifyAfterApproval(r,type);showToast("تم اعتماد التقرير وإقفاله على الفني","Report approved and locked for technician");}else{try{if(r.createdBy)await state.dbns.collection("notifications").add({recipientUid:r.createdBy,createdAt:now,read:false,vehicleCode:r.vehicleCode||"",reportId:r.id,reportType:type,titleAr:"التقرير معاد للتعديل",titleEn:"Report Returned for Revision",messageAr:"أعاد المشرف التقرير للتعديل: "+(notes||"يرجى مراجعة التقرير"),messageEn:"Supervisor returned the report for revision."});}catch(e){}showToast("تمت إعادة التقرير للفني","Report returned to technician");}div.remove();}catch(e){console.error(e);showToast("تعذر تحديث حالة التقرير. تحقق من صلاحيات Firestore","Could not update report. Check Firestore permissions");}
+}
+
 /* ========================================================================
    DETAIL OVERLAY
    ======================================================================== */
@@ -1437,6 +1490,7 @@ async function openOverlay(type, r){
     '<div class="overlay-head"><button class="overlay-close" id="closeOverlay">✕</button>'+
       '<div style="font-weight:800">'+bi(type==="vehicle"?"تقرير مركبة":"تقرير معدات", type==="vehicle"?"Vehicle Report":"Equipment Report")+'</div>'+
     '</div>'+html+
+    ((state.currentProfile&&state.currentProfile.role==="supervisor") ? '<div class="section-bar" style="margin-top:14px">'+bi("مراجعة المشرف","Supervisor Review")+'</div><div class="card"><div class="grid grid-2"><div class="field"><label>'+bi("ملاحظات المشرف","Supervisor Notes")+'</label><textarea id="supReviewNotes">'+esc(r.supervisorNotes||"")+'</textarea></div><div class="field"><label>'+bi("الإجراء المطلوب","Required Action")+'</label><textarea id="supRequiredAction">'+esc(r.supervisorRequiredAction||"")+'</textarea></div><div class="field"><label>'+bi("تاريخ المتابعة القادمة","Next Follow-up")+'</label><input type="date" id="supFollowDate" value="'+esc(r.supervisorFollowupDate||"")+'"></div></div><div class="btn-row"><button class="btn btn-primary btn-sm" id="supApprove">'+bi("اعتماد التقرير","Approve Report")+'</button><button class="btn btn-outline btn-sm" id="supReturn">'+bi("إرجاع للفني للتعديل","Return for Revision")+'</button></div></div>' : '')+
     '<div class="btn-row" style="margin-top:14px">'+
       '<button class="btn btn-leaf btn-sm" id="exportPdfBtn">'+bi("تنزيل PDF","Download PDF")+'</button>'+
       '<button class="btn btn-outline btn-sm" id="exportCsvBtn">'+bi("تنزيل Excel (CSV)","Download Excel (CSV)")+'</button>'+
@@ -1447,6 +1501,8 @@ async function openOverlay(type, r){
   on(div,"click",function(e){ if(e.target===div) div.remove(); });
   on(qs("#exportPdfBtn",div),"click",function(){ exportReportPDF(type,r,submitter); });
   on(qs("#exportCsvBtn",div),"click",function(){ exportReportCSV(type,r,submitter); });
+  on(qs("#supApprove",div),"click",function(){supervisorDecision(type,r,"approved",div);});
+  on(qs("#supReturn",div),"click",function(){supervisorDecision(type,r,"returned",div);});
 }
 
 function kvi(ar,en,val){
@@ -1819,6 +1875,10 @@ function startDataSubscriptions(){
   state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.vReports=all;state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
   state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.eReports=all;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
   if(state.currentProfile.role==="admin") state.dbns.collection("users").onSnapshot(function(snap){state.users=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="users")renderTab();});
+  var prof=state.currentProfile||{};
+  if(prof.role==="supervisor" || prof.role==="driver" || prof.role==="admin"){
+    state.dbns.collection("notifications").orderBy("createdAt","desc").limit(100).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});state.notifications=all.filter(function(n){return (n.recipientUid&&n.recipientUid===state.currentUser.uid)||(n.recipientRole&&n.recipientRole===prof.role);});if(state.tab==="dashboard")renderTab();});
+  }
   state.dbns.collection("app_config").doc("fleet_app").onSnapshot(function(doc){
     state.appUpdate=doc.exists?(doc.data()||{}):null;
     var ver=state.appUpdate&&state.appUpdate.version, seen=safeLocalGet("ps_seen_app_version");
