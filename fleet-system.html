@@ -169,6 +169,8 @@ main{padding-block:18px 60px}
 .photo-pdf{width:100%; aspect-ratio:4/3; border-radius:8px; margin-bottom:6px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:26px}
 .photo-btn{display:inline-block; font-size:12px; font-weight:700; padding:7px 10px; border-radius:8px; border:1px solid var(--accent); color:var(--accent); background:transparent; cursor:pointer}
 .photo-status{font-size:10.5px; color:var(--ok); margin-top:4px; font-weight:700}
+.photo-example{width:100%;aspect-ratio:4/3;border-radius:8px;margin-bottom:6px;background:var(--surface-2);overflow:hidden;border:1px solid var(--border)}
+.photo-example svg{width:100%;height:100%;display:block}.photo-example .ex{font-size:9px;fill:currentColor;opacity:.62}.photo-example .ttl{font-size:10px;font-weight:700;fill:currentColor}
 
 /* buttons */
 .btn{display:inline-flex; align-items:center; gap:6px; justify-content:center; border:none; border-radius:10px; padding:11px 18px; font-size:14px; font-weight:800; cursor:pointer; font-family:var(--font-display)}
@@ -900,21 +902,16 @@ function vehicleFormHTML(){
     VEHICLE_PHOTOS.map(function(p){ return photoSlotHTML("vphoto",p,d.photos[p[0]]); }).join("")+
   '</div></div>'+
 
-  '<div class="section-bar">'+bi("التقييم العام للمركبة","Overall Vehicle Evaluation")+'</div>'+
-  '<div class="card">'+segControl("vEval", VEHICLE_EVAL, d.evaluation)+'</div>'+
-
-  '<div class="card grid grid-2">'+
-    field_textarea("vFaults","الأعطال / الملاحظات","Faults / Remarks", d.faults) +
-    field_textarea("vAction","الإجراء المطلوب","Required Action", d.requiredAction) +
-  '</div>'+
-
-  '<div class="section-bar">'+bi("التوقيعات والمتابعة","Signatures &amp; Follow-up")+'</div>'+
-  '<div class="card"><div class="grid grid-3">'+
-    field_text("vSupName","اسم المشرف","Supervisor Name", d.supervisorName) +
-    field_text("vDriver2","اسم السائق","Driver Name", d.driverName2) +
-    field_date("vNextFollow","تاريخ المتابعة القادمة","Next Follow-up Date", d.nextFollowup) +
-  '</div>'+
-  '<p class="hint">'+bi("التوقيع: تُعتمد التقارير داخل النظام باسم المستخدم المُرسِل بدل التوقيع اليدوي.","Signature: reports are attributed to the submitting user inside the system instead of a handwritten signature.")+'</p></div>'+
+  (isDriver ?
+    '<div class="section-bar">'+bi("ملاحظات الفني","Technician Remarks")+'</div>'+
+    '<div class="card">'+field_textarea("vFaults","الأعطال / الملاحظات التي تمت ملاحظتها","Observed Faults / Remarks", d.faults)+'</div>'
+  :
+    '<div class="section-bar">'+bi("تقييم الإدارة للمركبة","Management Vehicle Evaluation")+'</div>'+
+    '<div class="card">'+segControl("vEval", VEHICLE_EVAL, d.evaluation)+'</div>'+
+    '<div class="card grid grid-2">'+field_textarea("vFaults","الأعطال / الملاحظات","Faults / Remarks", d.faults)+field_textarea("vAction","الإجراء المطلوب","Required Action", d.requiredAction)+'</div>'+
+    '<div class="section-bar">'+bi("المتابعة الإدارية","Management Follow-up")+'</div>'+
+    '<div class="card"><div class="grid grid-2">'+field_text("vSupName","اسم المشرف","Supervisor Name", d.supervisorName)+field_date("vNextFollow","تاريخ المتابعة القادمة","Next Follow-up Date", d.nextFollowup)+'</div></div>'
+  )+
 
   '<div class="btn-row" style="margin-top:6px">'+
     '<button class="btn btn-primary" id="vSubmit">'+bi("إرسال التقرير","Submit Report")+'</button>'+
@@ -954,6 +951,21 @@ function checklistItemHTML(prefix,it,idx,data){
     '</div></div>';
 }
 
+function photoExampleHTML(slotId, arTitle, enTitle){
+  function svg(body){return '<div class="photo-example"><svg viewBox="0 0 160 120" role="img" aria-label="'+esc(arTitle)+'"><rect x="0" y="0" width="160" height="120" rx="10" fill="currentColor" opacity=".04"/>'+body+'<text x="80" y="111" text-anchor="middle" class="ex">نموذج توضيحي • Example</text></svg></div>';}
+  if(slotId==="estemara"||slotId==="insurance"||slotId==="fahs"){
+    var label=slotId==="estemara"?"استمارة / Registration":slotId==="insurance"?"تأمين / Insurance":"فحص دوري / Inspection";
+    return svg('<rect x="28" y="16" width="104" height="76" rx="7" fill="none" stroke="currentColor" stroke-width="2"/><rect x="38" y="27" width="28" height="22" rx="3" fill="currentColor" opacity=".14"/><line x1="74" y1="29" x2="120" y2="29" stroke="currentColor"/><line x1="74" y1="39" x2="116" y2="39" stroke="currentColor" opacity=".6"/><line x1="38" y1="60" x2="120" y2="60" stroke="currentColor" opacity=".55"/><line x1="38" y1="70" x2="108" y2="70" stroke="currentColor" opacity=".4"/><text x="80" y="86" text-anchor="middle" class="ttl">'+label+'</text>');
+  }
+  if(slotId==="odometer") return svg('<circle cx="80" cy="54" r="35" fill="none" stroke="currentColor" stroke-width="3"/><path d="M50 65 A34 34 0 0 1 110 65" fill="none" stroke="currentColor" opacity=".45"/><line x1="80" y1="54" x2="101" y2="39" stroke="currentColor" stroke-width="3"/><rect x="61" y="68" width="38" height="12" rx="3" fill="currentColor" opacity=".13"/><text x="80" y="77" text-anchor="middle" class="ttl">123456 KM</text>');
+  if(slotId==="tires"||slotId==="tirespare") return svg('<circle cx="80" cy="55" r="36" fill="none" stroke="currentColor" stroke-width="10"/><circle cx="80" cy="55" r="17" fill="none" stroke="currentColor" stroke-width="3"/><path d="M80 38v34M63 55h34M68 43l24 24M92 43L68 67" stroke="currentColor" opacity=".45"/><text x="80" y="99" text-anchor="middle" class="ttl">'+(slotId==="tires"?'الكفر المتضرر / Problem Tire':'الكفر الاحتياطي / Spare Tire')+'</text>');
+  if(slotId==="interior") return svg('<path d="M35 76h90l-8-31H43z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="61" cy="62" r="13" fill="none" stroke="currentColor" stroke-width="3"/><rect x="83" y="54" width="25" height="15" rx="3" fill="currentColor" opacity=".12"/><path d="M48 80v10M112 80v10" stroke="currentColor" stroke-width="3"/><text x="80" y="101" text-anchor="middle" class="ttl">داخل المركبة / Interior</text>');
+  if(slotId==="engine") return svg('<path d="M37 54h86l-10 35H47z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M43 49L57 25h46l14 24" fill="none" stroke="currentColor" stroke-width="3"/><rect x="57" y="58" width="46" height="22" rx="4" fill="currentColor" opacity=".13"/><text x="80" y="101" text-anchor="middle" class="ttl">المحرك والرديتر / Engine</text>');
+  var view=slotId==="front"?"أمام / Front":slotId==="back"?"خلف / Rear":slotId==="left"?"يسار / Left Side":slotId==="right"?"يمين / Right Side":slotId==="trunk"?"الصندوق / Bed":"موضع الضرر / Damage";
+  if(slotId==="front"||slotId==="back") return svg('<path d="M43 46l12-18h50l12 18 8 33H35z" fill="none" stroke="currentColor" stroke-width="3"/><rect x="57" y="34" width="46" height="20" rx="3" fill="currentColor" opacity=".12"/><circle cx="52" cy="78" r="7" fill="currentColor" opacity=".55"/><circle cx="108" cy="78" r="7" fill="currentColor" opacity=".55"/><text x="80" y="100" text-anchor="middle" class="ttl">بيك أب — '+view+'</text>');
+  return svg('<path d="M25 65h20l9-24h47l15 24h19v17H25z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M57 44h39l13 21H49z" fill="currentColor" opacity=".10"/><circle cx="48" cy="82" r="10" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="113" cy="82" r="10" fill="none" stroke="currentColor" stroke-width="4"/><text x="80" y="103" text-anchor="middle" class="ttl">بيك أب — '+view+'</text>');
+}
+
 function photoSlotHTML(prefix,p,assetInfo){
   var slotId = p[0];
   var has = assetInfo && assetInfo.id;
@@ -963,7 +975,7 @@ function photoSlotHTML(prefix,p,assetInfo){
   } else if(has){
     inner = '<img class="photo-thumb" src="'+esc(assetInfo.url||"")+'" alt="">';
   } else {
-    inner = '<div class="photo-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>';
+    inner = photoExampleHTML(slotId,p[1],p[2]);
   }
   return '<div class="photo-slot" data-slot="'+slotId+'">'+
     '<b>'+esc(p[1])+'</b><span class="en">'+esc(p[2])+'</span>'+
@@ -1096,7 +1108,7 @@ async function handlePhotoUpload(prefix, slotId, file, draft, saver){
     draft.photos[slotId] = {id:res.id, url:res.url, contentType:res.contentType};
     saver();
     if(slotEl){
-      var preview = slotEl.querySelector(".photo-thumb,.photo-pdf");
+      var preview = slotEl.querySelector(".photo-thumb,.photo-pdf,.photo-example");
       if(preview){
         if(res.contentType==="application/pdf"){
           var pdfDiv = document.createElement("div"); pdfDiv.className="photo-pdf"; pdfDiv.textContent="📄";
@@ -1128,7 +1140,6 @@ async function submitVehicleReport(){
   if((tireStatus==="followup"||tireStatus==="maintenance") && (!d.tireProblem || !d.photos.tires || !d.photos.tires.id)){ showToast("حدد الكفر المتضرر وارفع صورته","Select the affected tire and upload its photo"); return; }
   if((dentsStatus==="followup"||dentsStatus==="maintenance") && (!d.photos.dents||!d.photos.dents.id)){ showToast("ارفع صورة الصدمات أو الخدوش","Upload a photo of dents/scratches"); return; }
   if((interiorStatus==="followup"||interiorStatus==="maintenance") && (!d.photos.interior||!d.photos.interior.id)){ showToast("ارفع صورة الحالة الداخلية","Upload an interior photo"); return; }
-  if(!d.supervisorName || !d.supervisorName.trim()){ showToast("يرجى إدخال اسم المشرف","Please enter the supervisor name"); return; }
   if(!state.dbns){ showToast("قاعدة البيانات غير متاحة حاليًا","Database unavailable right now"); return; }
 
   var btn = qs("#vSubmit"); if(btn){ btn.disabled = true; btn.textContent = "جارٍ الإرسال… Sending…"; }
@@ -1196,17 +1207,13 @@ function equipmentFormHTML(){
     field_textarea("eMissing","المعدات الناقصة","Missing Equipment", d.missingNotes) +
     field_textarea("eMaint","المعدات التي تحتاج صيانة","Equipment Needing Maintenance", d.maintenanceNotes) +
   '</div>'+
-  '<div class="card">'+field_textarea("eAction","الإجراء المطلوب","Required Action", d.requiredAction)+'</div>'+
-
-  '<div class="section-bar">'+bi("التقييم النهائي للمركبة والمعدات","Final Vehicle &amp; Equipment Evaluation")+'</div>'+
-  '<div class="card">'+segControl("eEval", EQUIP_EVAL, d.finalEvaluation)+'</div>'+
-
-  '<div class="section-bar">'+bi("التوقيعات","Signatures")+'</div>'+
-  '<div class="card"><div class="grid grid-2">'+
-    field_text("eSupName2","اسم المشرف","Supervisor Name", d.supervisorName) +
-    field_text("eTechName","اسم الفني أو السائق","Technician / Driver Name", d.technicianName) +
-  '</div>'+
-  '<p class="hint">'+bi("التوقيع: تُعتمد التقارير داخل النظام باسم المستخدم المُرسِل بدل التوقيع اليدوي.","Signature: reports are attributed to the submitting user inside the system instead of a handwritten signature.")+'</p></div>'+
+  (isDriver ? '' :
+    '<div class="card">'+field_textarea("eAction","الإجراء المطلوب","Required Action", d.requiredAction)+'</div>'+
+    '<div class="section-bar">'+bi("تقييم الإدارة للمركبة والمعدات","Management Vehicle &amp; Equipment Evaluation")+'</div>'+
+    '<div class="card">'+segControl("eEval", EQUIP_EVAL, d.finalEvaluation)+'</div>'+
+    '<div class="section-bar">'+bi("المتابعة الإدارية","Management Follow-up")+'</div>'+
+    '<div class="card">'+field_text("eSupName2","اسم المشرف","Supervisor Name", d.supervisorName)+'</div>'
+  )+
 
   '<div class="btn-row" style="margin-top:6px">'+
     '<button class="btn btn-primary" id="eSubmit">'+bi("إرسال التقرير","Submit Report")+'</button>'+
@@ -1259,7 +1266,7 @@ function wireEquipmentForm(){
     on(el,"input",function(){ equipmentDraft[pair[1]] = el.value; if(pair[1]==="supervisorName"){var o=qs("#eSupName2"); if(o) o.value=el.value;} saveEquipmentDraft(); });
     on(el,"change",function(){ equipmentDraft[pair[1]] = el.value; saveEquipmentDraft(); });
   });
-  on(qs("#eSupName2"),"input",function(){ equipmentDraft.supervisorName = qs("#eSupName2").value; var o=qs("#eSup"); if(o) o.value=qs("#eSupName2").value; saveEquipmentDraft(); });
+  var eSupName2=qs("#eSupName2"); if(eSupName2) on(eSupName2,"input",function(){ equipmentDraft.supervisorName = eSupName2.value; var o=qs("#eSup"); if(o) o.value=eSupName2.value; saveEquipmentDraft(); });
   on(qs("#eCode"),"change",function(){
     var code = qs("#eCode").value;
     var v = state.vehicles.filter(function(x){return x.code===code;})[0];
@@ -1336,7 +1343,6 @@ async function submitEquipmentReport(){
   if(!code){ showToast("يرجى اختيار كود المركبة","Please select a vehicle code"); return; }
   if(!d.date){ showToast("يرجى تحديد التاريخ","Please set the date"); return; }
   for(var ei=0;ei<EQUIPMENT_ITEMS.length;ei++){ var eid=EQUIPMENT_ITEMS[ei][0], item=d.items[eid]||{}; if(!item.status){ showToast("حدد حالة جميع المعدات","Select a status for every equipment item"); return; } if(item.status!=="missing" && (!d.photos[eid]||!d.photos[eid].id)){ showToast("صورة كل معدة موجودة مطلوبة","A photo is required for every equipment item that is present"); return; } if(item.status!=="missing" && (item.qty===""||Number(item.qty)<1)){ showToast("أدخل العدد لكل معدة موجودة","Enter quantity for every equipment item that is present"); return; } }
-  if(!d.supervisorName || !d.supervisorName.trim()){ showToast("يرجى إدخال اسم المشرف","Please enter the supervisor name"); return; }
   if(!state.dbns){ showToast("قاعدة البيانات غير متاحة حاليًا","Database unavailable right now"); return; }
 
   var btn = qs("#eSubmit"); if(btn){ btn.disabled = true; btn.textContent = "جارٍ الإرسال… Sending…"; }
@@ -1722,16 +1728,17 @@ async function exportReportPDF(type, r, submitter){
    AUTH + USER MANAGEMENT
    ======================================================================== */
 function loginHTML(){
-  return '<div class="auth-wrap"><div class="auth-card"><h2>تسجيل الدخول</h2><div class="en">Fleet System Login</div>'+ 
-    '<div class="field"><label class="bi">البريد الإلكتروني</label><input id="loginEmail" type="email" autocomplete="username"></div>'+ 
-    '<div class="field"><label class="bi">كلمة المرور</label><input id="loginPass" type="password" autocomplete="current-password"></div>'+ 
-    '<div class="btn-row" style="margin-top:16px"><button class="btn btn-primary" id="loginBtn">دخول</button></div><div id="loginErr" class="hint"></div></div></div>';
+  return '<div class="auth-wrap"><div class="auth-card"><h2>'+bi("تسجيل الدخول","Sign In")+'</h2>'+
+    '<p class="hint">'+bi("نظام أسطول ومعدات خطوة محترف","Professional Step Fleet & Equipment System")+'</p>'+
+    '<div class="field"><label class="bi">'+bi("البريد الإلكتروني","Email Address")+'</label><input id="loginEmail" type="email" autocomplete="username" placeholder="name@example.com"></div>'+ 
+    '<div class="field"><label class="bi">'+bi("كلمة المرور","Password")+'</label><input id="loginPass" type="password" autocomplete="current-password"></div>'+ 
+    '<div class="btn-row" style="margin-top:16px"><button class="btn btn-primary" id="loginBtn">'+bi("دخول","Sign In")+'</button></div><div id="loginErr" class="hint"></div></div></div>';
 }
 function showLogin(){
   qs("#app").innerHTML=loginHTML();
   on(qs("#loginBtn"),"click",async function(){
     var e=qs("#loginEmail").value.trim(), p=qs("#loginPass").value;
-    try{ await state.auth.signInWithEmailAndPassword(e,p); }catch(err){ qs("#loginErr").textContent="تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور."; }
+    try{ await state.auth.signInWithEmailAndPassword(e,p); }catch(err){ qs("#loginErr").innerHTML=bi("تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.","Could not sign in. Check your email and password."); }
   });
 }
 function usersHTML(){
