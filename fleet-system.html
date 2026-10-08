@@ -293,7 +293,6 @@ var LOGO_DATA_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAADHCAYAA
 var VEHICLE_CHECK_ITEMS = [
   ["oil","زيت المحرك","Engine Oil"],
   ["coolant","ماء / سائل الرديتر","Coolant / Radiator Fluid"],
-  ["brakefluid","زيت الفرامل","Brake Fluid"],
   ["tires","حالة الكفرات","Tire Condition"],
   ["tirespare","الكفر الاحتياطي","Spare Tire"],
   ["brakes","الفرامل","Brakes"],
@@ -301,7 +300,6 @@ var VEHICLE_CHECK_ITEMS = [
   ["lightsrear","الأنوار الخلفية","Rear Lights"],
   ["turnsignals","إشارات الانعطاف","Turn Signals"],
   ["wipers","المساحات","Wipers"],
-  ["wiperfluid","ماء المساحات","Wiper Fluid"],
   ["ac","المكيف","A/C"],
   ["glass","الزجاج","Glass"],
   ["mirrors","المرايا","Mirrors"],
@@ -310,12 +308,7 @@ var VEHICLE_CHECK_ITEMS = [
 ];
 
 var VEHICLE_PHOTOS = [
-  ["estemara","صورة الاستمارة","Registration Photo"],
-  ["insurance","صورة التأمين","Insurance Photo"],
-  ["fahs","صورة الفحص الدوري","Inspection Certificate Photo"],
   ["odometer","صورة العداد","Odometer Photo"],
-  ["tires","صورة الكفر المتضرر عند وجود مشكلة","Problem Tire Photo (if applicable)"],
-  ["tirespare","صورة الكفر الاحتياطي","Spare Tire Photo"],
   ["dents","صورة الصدمات والخدوش عند وجودها","Dents / Scratches Photo (if present)"],
   ["interior","صورة الحالة الداخلية عند وجود مشكلة","Interior Photo (if not sound)"],
   ["right","المركبة — يمين","Vehicle — Right Side"],
@@ -323,7 +316,7 @@ var VEHICLE_PHOTOS = [
   ["front","المركبة — أمام","Vehicle — Front"],
   ["back","المركبة — خلف","Vehicle — Back"],
   ["trunk","الصندوق من الداخل","Trunk — Inside"],
-  ["engine","المحرك والرديتر (بعد فتح الكبوت)","Engine & Radiator (Hood Open)"]
+  ["engine","صورة السيارة بعد فتح الكبوت","Vehicle With Hood Open"]
 ];
 
 var EQUIPMENT_ITEMS = [
@@ -347,12 +340,6 @@ var EQUIPMENT_ITEMS = [
   ["toolbox","صندوق معدات / عدة يدوية","Tool Box / Hand Tools"],
   ["pestbox","صندوق وضع المبيدات","Pesticide Storage Box"],
   ["safetybox","صندوق معدات السلامة","Safety Equipment Box"],
-  ["uniform","يونيفورم الشركة","Company Uniform"],
-  ["helmet","خوذة سلامة","Safety Helmet"],
-  ["boots","جزمة سلامة","Safety Boots"],
-  ["vest","سديري سلامة","Safety Vest"],
-  ["gloves","قفازات","Gloves"],
-  ["masks","كمامات","Masks"],
   ["goggles","نظارات حماية","Safety Goggles"],
   ["personalbox","صندوق الأغراض الشخصية","Personal Belongings Box"],
   ["firstaid","شنطة إسعافات أولية","First Aid Kit"],
@@ -975,9 +962,9 @@ function checklistItemHTML(prefix,it,idx,data){
   return '<div class="item-card" data-item="'+it[0]+'">'+
     '<div class="item-head"><span class="item-idx">'+idx+'</span>'+
       '<div class="item-name"><b>'+esc(it[1])+'</b><span class="en">'+esc(it[2])+'</span></div></div>'+
-    '<div class="item-row">'+segControl(prefix+"-"+it[0], TRI_CHECK, data.status)+
+    '<div class="item-row">'+segControl(prefix+"-"+it[0], (it[0]==="oil"||it[0]==="coolant" ? [["sound","سليم","Normal","ok"],["low","ينقص","Low","danger"]] : it[0]==="tirespare" ? [["sound","موجود وسليم","Present & Sound","ok"],["missing","غير موجود","Missing","danger"],["not_sound","غير سليم","Not Sound","danger"]] : it[0]==="tires" ? [["sound","سليم","Sound","ok"],["followup","يحتاج متابعة","Needs Follow-up","warn"]] : TRI_CHECK), data.status)+
       '<div class="notes"><input type="text" placeholder="ملاحظات / Notes" id="'+prefix+'-'+it[0]+'-notes" value="'+esc(data.notes||"")+'"></div>'+
-    '</div></div>';
+    '</div>'+(it[0]==="tires" && data.status==="followup" ? '<div style="margin-top:10px">'+photoSlotHTML("vphoto",["tires","صورة الكفر الذي يحتاج متابعة","Tire Requiring Follow-up"],vehicleDraft.photos.tires)+'</div>' : '')+(it[0]==="tirespare" ? '<div style="margin-top:10px">'+photoSlotHTML("vphoto",["tirespare","صورة الكفر الاحتياطي","Spare Tire Photo"],vehicleDraft.photos.tirespare)+'</div>' : '')+'</div>';
 }
 
 function photoExampleHTML(slotId, arTitle, enTitle){
@@ -1070,6 +1057,7 @@ function wireVehicleForm(){
     vehicleDraft.checklist[itemId] = vehicleDraft.checklist[itemId] || {status:"",notes:""};
     vehicleDraft.checklist[itemId].status = val;
     saveVehicleDraft();
+    if(itemId==="tires") refreshTirePhotoSlots();
   });
   qsa("#vChecklist .notes input").forEach(function(inp){
     on(inp,"input",function(){
@@ -1081,6 +1069,17 @@ function wireVehicleForm(){
     });
   });
 
+  function refreshTirePhotoSlots(){
+    var card=qs('#vChecklist [data-item="tires"]');
+    if(!card) return;
+    var old=qs('.tire-inline-photo',card); if(old) old.remove();
+    if((vehicleDraft.checklist.tires||{}).status!=="followup") return;
+    var wrap=document.createElement('div'); wrap.className='tire-inline-photo'; wrap.style.marginTop='10px';
+    wrap.innerHTML=photoSlotHTML('vphoto',["tires","صورة الكفر الذي يحتاج متابعة","Tire Requiring Follow-up"],vehicleDraft.photos.tires);
+    card.appendChild(wrap);
+    var inp=qs('[data-photoinput="vphoto-tires"]',wrap);
+    on(inp,'change',function(){var f=inp.files&&inp.files[0];if(f)handlePhotoUpload('vphoto','tires',f,vehicleDraft,saveVehicleDraft);});
+  }
   /* evaluation */
   wireSegControls(qs("#main"), function(group,val){
     if(group==="vEval"){ vehicleDraft.evaluation = val; saveVehicleDraft(); }
@@ -1165,7 +1164,7 @@ async function submitVehicleReport(){
   if(!code){ showToast("يرجى اختيار كود المركبة","Please select a vehicle code"); return; }
   if(!d.inspectionDate){ showToast("يرجى تحديد تاريخ الفحص","Please set the inspection date"); return; }
   var tireStatus=(d.checklist.tires||{}).status, dentsStatus=(d.checklist.dents||{}).status, interiorStatus=(d.checklist.interior||{}).status;
-  if(!d.photos.tirespare || !d.photos.tirespare.id){ showToast("صورة الكفر الاحتياطي مطلوبة","Spare tire photo is required"); return; }
+  if(tireStatus && (d.checklist.tirespare||{}).status!=="missing" && (!d.photos.tirespare || !d.photos.tirespare.id)){ showToast("صورة الكفر الاحتياطي مطلوبة","Spare tire photo is required"); return; }
   if((tireStatus==="followup"||tireStatus==="maintenance") && (!d.tireProblem || !d.photos.tires || !d.photos.tires.id)){ showToast("حدد الكفر المتضرر وارفع صورته","Select the affected tire and upload its photo"); return; }
   if((dentsStatus==="followup"||dentsStatus==="maintenance") && (!d.photos.dents||!d.photos.dents.id)){ showToast("ارفع صورة الصدمات أو الخدوش","Upload a photo of dents/scratches"); return; }
   if((interiorStatus==="followup"||interiorStatus==="maintenance") && (!d.photos.interior||!d.photos.interior.id)){ showToast("ارفع صورة الحالة الداخلية","Upload an interior photo"); return; }
@@ -1212,7 +1211,7 @@ function equipmentFormHTML(){
     (isDriver?field_locked("ePlate","رقم اللوحة","Plate No.",d.plate):field_text("ePlate","رقم اللوحة","Plate No.", d.plate)) +
     (isDriver?field_locked("eCity","المدينة","City",d.city):field_text("eCity","المدينة","City", d.city)) +
     (isDriver?field_locked("eTech","اسم السائق","Driver Name",d.driverTech):field_text("eTech","اسم السائق","Driver Name", d.driverTech)) +
-    field_text("eSup","اسم المشرف","Supervisor Name", d.supervisorName) +
+
     field_date("eDate","التاريخ","Date", d.date) +
     field_number("eOdo","قراءة العداد","Odometer", d.odometer) +
   '</div></div>'+
@@ -1221,28 +1220,6 @@ function equipmentFormHTML(){
   '<div class="card" id="eqItems">'+
     EQUIPMENT_ITEMS.map(function(it,i){ return equipmentItemHTML(it,i+1,d.items[it[0]]); }).join("")+
   '</div>'+
-
-  '<div class="section-bar">'+bi("معدات إضافية","Additional Equipment")+'</div>'+
-  '<div class="card" id="extraItems">'+extraItemsHTML(d.extraItems)+
-    '<button class="btn btn-outline btn-sm" id="addExtra" type="button">'+bi("+ إضافة معدة","+ Add Equipment")+'</button>'+
-  '</div>'+
-
-  '<div class="section-bar">'+bi("حالة ترتيب وتجهيز السيارة","Vehicle Readiness Status")+'</div>'+
-  '<div class="card" id="readinessList">'+
-    READINESS_ITEMS.map(function(it,i){ return readinessItemHTML(it,i+1,d.readiness[it[0]]); }).join("")+
-  '</div>'+
-
-  '<div class="card grid grid-2">'+
-    field_textarea("eMissing","المعدات الناقصة","Missing Equipment", d.missingNotes) +
-    field_textarea("eMaint","المعدات التي تحتاج صيانة","Equipment Needing Maintenance", d.maintenanceNotes) +
-  '</div>'+
-  (isDriver ? '' :
-    '<div class="card">'+field_textarea("eAction","الإجراء المطلوب","Required Action", d.requiredAction)+'</div>'+
-    '<div class="section-bar">'+bi("تقييم الإدارة للمركبة والمعدات","Management Vehicle &amp; Equipment Evaluation")+'</div>'+
-    '<div class="card">'+segControl("eEval", EQUIP_EVAL, d.finalEvaluation)+'</div>'+
-    '<div class="section-bar">'+bi("المتابعة الإدارية","Management Follow-up")+'</div>'+
-    '<div class="card">'+field_text("eSupName2","اسم المشرف","Supervisor Name", d.supervisorName)+'</div>'
-  )+
 
   '<div class="btn-row" style="margin-top:6px">'+
     '<button class="btn btn-primary" id="eSubmit">'+bi("إرسال التقرير","Submit Report")+'</button>'+
