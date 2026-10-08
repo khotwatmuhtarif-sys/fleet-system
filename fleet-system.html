@@ -991,7 +991,7 @@ function photoSlotHTML(prefix,p,assetInfo){
   } else if(has){
     inner = '<img class="photo-thumb" src="'+esc(assetInfo.url||"")+'" alt="">';
   } else {
-    inner = photoExampleHTML(slotId,p[1],p[2]);
+    inner = prefix === "ephoto" ? '<div class="photo-example equipment-camera-placeholder" aria-label="Camera / كاميرا"><span aria-hidden="true" style="font-size:46px;line-height:1">📷</span><span style="font-size:12px;font-weight:700">تصوير المعدة / Equipment Photo</span></div>' : photoExampleHTML(slotId,p[1],p[2]);
   }
   return '<div class="photo-slot" data-slot="'+slotId+'">'+
     '<b>'+esc(p[1])+'</b><span class="en">'+esc(p[2])+'</span>'+
