@@ -504,7 +504,7 @@ var TABS = [
 ];
 
 /* ===== V5.6 helpers ===== */
-var APP_VERSION="5.7.0";
+var APP_VERSION="5.7.1";
 var STATUS_LABELS={sound:["سليم","Sound","ok"],followup:["يحتاج متابعة","Needs Follow-up","warn"],maintenance:["يحتاج صيانة","Needs Maintenance","danger"],low:["ينقص","Low","danger"],missing:["غير موجود","Missing","danger"],not_sound:["غير سليم","Not Sound","danger"],available:["موجود","Available","ok"]};
 function statusRow(code){ var s=STATUS_LABELS[code]; return s?[code,s[0],s[1],s[2]]:null; }
 function isProblem(code){ return !!code && code!=="sound" && code!=="available"; }
@@ -1934,38 +1934,31 @@ async function exportReportPDF(type, r, submitter){
   var sheet = buildPrintSheet(type, r, submitter);
   try{
     var canvas = await window.html2canvas(sheet, {scale:2, backgroundColor:"#ffffff", useCORS:true});
-    var jsPDFCtor = window.jspdf.jsPDF;
-    var pdf = new jsPDFCtor({unit:"pt", format:"a4"});
-    var pageW = pdf.internal.pageSize.getWidth();
-    var pageH = pdf.internal.pageSize.getHeight();
-    var imgW = pageW;
-    var imgH = canvas.height * (imgW / canvas.width);
-    var heightLeft = imgH, position = 0, first = true;
-    var pageCanvasH = pageH * (canvas.width / imgW);
-    while(heightLeft > 0){
-      var sliceH = Math.min(pageCanvasH, canvas.width>0 ? (canvas.height - position*(canvas.width/imgW)) : 0);
-      var sliceCanvas = document.createElement("canvas");
-      sliceCanvas.width = canvas.width;
-      sliceCanvas.height = Math.min(pageCanvasH, canvas.height - (canvas.height - heightLeft*(canvas.width/imgW)));
-      var srcY = canvas.height - heightLeft*(canvas.width/imgW);
-      sliceCanvas.height = Math.min(pageCanvasH, canvas.height - srcY);
-      var ctx = sliceCanvas.getContext("2d");
-      ctx.drawImage(canvas, 0, srcY, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
-      var sliceImgH = sliceCanvas.height * (imgW / canvas.width);
+    var pdf = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
+    var pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+    var ptPerPx = pageW / canvas.width;
+    /* تقطيع الصفحات ببكسلات صحيحة: النسخة السابقة كانت تنتج أحيانًا شريحة أخيرة بارتفاع صفر فيفشل الملف */
+    var pagePx = Math.max(1, Math.floor(pageH / ptPerPx)), srcY = 0, first = true;
+    while(srcY < canvas.height){
+      var h = Math.min(pagePx, canvas.height - srcY);
+      if(h < 2 && !first) break;
+      var slice = document.createElement("canvas");
+      slice.width = canvas.width; slice.height = h;
+      slice.getContext("2d").drawImage(canvas, 0, srcY, canvas.width, h, 0, 0, canvas.width, h);
       if(!first) pdf.addPage();
-      pdf.addImage(sliceCanvas.toDataURL("image/jpeg",0.92), "JPEG", 0, 0, imgW, sliceImgH);
-      heightLeft -= sliceImgH;
-      first = false;
+      pdf.addImage(slice.toDataURL("image/jpeg",0.92), "JPEG", 0, 0, pageW, h * ptPerPx);
+      srcY += h; first = false;
     }
-    var blob = pdf.output("blob");
     var fname = (type==="vehicle"?"vehicle-report-":"equipment-report-")+(r.vehicleCode||"x")+"-"+(type==="vehicle"?r.inspectionDate:r.date)+".pdf";
-    await saveFile(fname, blob);
+    saveFile(fname, pdf.output("blob"));
   }catch(e){
+    console.error("PDFERR "+(e&&e.stack||e));
     showToast("تعذر إنشاء ملف PDF","Could not generate the PDF");
   }finally{
     sheet.remove();
   }
 }
+
 
 /* ========================================================================
    AUTH + USER MANAGEMENT
