@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>أسطول خطوة محترف V5</title>
+<title>أسطول خطوة محترف V5.7</title>
 <meta name="description" content="نظام متابعة فحص المركبات والمعدات الشهري - خطوة محترف">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -245,6 +245,23 @@ table.rep-table th{background:var(--surface-2)}
 
 .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:20px}.auth-card{width:min(440px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow)}.auth-card h2{margin:0 0 6px}.auth-card .field{margin-top:12px}.user-chip{font-size:11px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:6px 10px}.users-list{display:grid;gap:8px;margin-top:12px}.user-row{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:10px;padding:10px}.user-row .meta{font-size:11px;color:var(--muted)}
 @media print{ body{display:none} }
+
+/* ===== V5.6+: mobile layout fixes ===== */
+.veh-grid{grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}
+.veh-card-top{flex-wrap:wrap; justify-content:space-between}
+.veh-card .badge,.hist-row .badge,.user-row .badge{white-space:normal; text-align:center}
+.veh-rows .r>:last-child{text-align:end; min-width:0; overflow-wrap:anywhere}
+.veh-rows .k{flex:none; max-width:45%}
+.appbar-inner{flex-wrap:wrap}
+.btn-primary .en,.btn-leaf .en{color:inherit}
+.hist-main{flex:1 1 55%; min-width:0}
+.appbar-titles{flex:1 1 150px; min-width:0}
+@media (max-width:640px){
+  .appbar-spacer{display:none}
+  .btn-row .btn{flex:1 1 130px; min-height:44px}
+  .hist-row{flex-wrap:wrap}
+  .user-row .field{flex:1 1 100%}
+}
 </style>
 </head>
 <body>
@@ -388,7 +405,7 @@ function fmtDate(iso){
   try{
     var d = new Date(iso.length<=10 ? iso+"T00:00:00" : iso);
     if(isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString("ar-SA-u-nu-latn",{year:"numeric",month:"2-digit",day:"2-digit"});
+    return d.toLocaleDateString("en-GB",{year:"numeric",month:"2-digit",day:"2-digit"}); /* ميلادي dd/mm/yyyy */
   }catch(e){ return iso; }
 }
 function daysUntil(iso){
@@ -486,16 +503,170 @@ var TABS = [
   ["users","المستخدمون","Users"]
 ];
 
+/* ===== V5.6 helpers ===== */
+var APP_VERSION="5.7.0";
+var STATUS_LABELS={sound:["سليم","Sound","ok"],followup:["يحتاج متابعة","Needs Follow-up","warn"],maintenance:["يحتاج صيانة","Needs Maintenance","danger"],low:["ينقص","Low","danger"],missing:["غير موجود","Missing","danger"],not_sound:["غير سليم","Not Sound","danger"],available:["موجود","Available","ok"]};
+function statusRow(code){ var s=STATUS_LABELS[code]; return s?[code,s[0],s[1],s[2]]:null; }
+function isProblem(code){ return !!code && code!=="sound" && code!=="available"; }
+var VEH_TYPES={single_pickup:["غمارة","Single Cab Pickup"],double_pickup:["غمارتين","Double Cab Pickup"],sedan:["سيدان","Sedan"],suv_4wd:["دفع رباعي","4x4"]};
+function vehTypeLabel(k){ var t=VEH_TYPES[k]; return t?(t[0]+" / "+t[1]):(k||""); }
+var CITY_AR={Jeddah:"جدة",Riyadh:"الرياض",Makkah:"مكة",all:"جميع المدن"};
+function cityLabel(c){ return CITY_AR[c]?(CITY_AR[c]+" / "+(c==="all"?"All":c)):(c||""); }
+var ROLE_LABELS={admin:["مدير","Admin"],supervisor:["مشرف","Supervisor"],driver:["فني / سائق","Technician"]};
+var unsubs=[], profileUnsub=null;
+function stopSubs(){ unsubs.forEach(function(u){ try{u();}catch(e){} }); unsubs=[]; }
+function setConn(ok){ var b=document.querySelector("#connBadge"); if(b) b.innerHTML=ok?bi("متصل","Online"):bi("خطأ اتصال / صلاحيات","Connection / permission error"); }
+function fmtDateTime(iso){ if(!iso) return "—"; var d=new Date(iso); if(isNaN(d.getTime())) return iso; return d.toLocaleString("en-GB",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}); }
+function myName(){ return (state.currentProfile&&state.currentProfile.name)||(state.currentUser&&state.currentUser.email)||""; }
+function cmpVer(a,b){ var x=String(a).split("."), y=String(b).split("."); for(var i=0;i<Math.max(x.length,y.length);i++){ var d=(+x[i]||0)-(+y[i]||0); if(d) return d; } return 0; }
+function applyUpdateNotice(){
+  var ub=qs("#updateBtn"); if(!ub) return;
+  var ver=state.appUpdate&&state.appUpdate.version;
+  if(ver && /^\d+(\.\d+)*$/.test(String(ver)) && cmpVer(ver,APP_VERSION)>0){
+    ub.hidden=false;
+    ub.onclick=function(){
+      if(!confirm_("سيتم تحميل الإصدار "+ver+". المسودات المحفوظة على هذا الجهاز لن تُحذف.","Version "+ver+" will be loaded. Drafts saved on this device are kept.")) return;
+      safeLocalSet("ps_seen_app_version",ver);
+      var u=new URL(location.href); u.searchParams.set("v",Date.now()); location.href=u.toString();
+    };
+  } else ub.hidden=true;
+}
+function pushNotif(n){
+  if(!state.dbns||!state.currentUser) return Promise.resolve();
+  n.createdAt=new Date().toISOString(); n.createdByUid=state.currentUser.uid; n.read=false;
+  return state.dbns.collection("notifications").add(n).catch(function(e){ console.error(e); });
+}
+function notifSeenKey(){ return "ps_notif_seen_"+((state.currentUser&&state.currentUser.uid)||"x"); }
+function notificationsHTML(){
+  var list=(state.notifications||[]).slice(0,8); if(!list.length) return '';
+  var seen=safeLocalGet(notifSeenKey())||"";
+  var unread=list.filter(function(n){ return (n.createdAt||"")>seen; }).length;
+  return '<div class="section-bar leaf">'+bi("الإشعارات"+(unread?" ("+unread+" جديد)":""),"Notifications"+(unread?" ("+unread+" new)":""))+'</div><div class="card">'+
+    list.map(function(n){
+      var isNew=(n.createdAt||"")>seen;
+      return '<div style="padding:9px 0;border-bottom:1px solid var(--border)">'+(isNew?'<span class="badge warn">'+bi("جديد","New")+'</span> ':'')+'<b>'+esc(n.titleAr||"إشعار")+'</b><span class="en">'+esc(n.titleEn||"")+'</span><div class="hint">'+esc(n.messageAr||"")+'</div><div class="hint en">'+esc(n.messageEn||"")+'</div><div class="hint">'+esc(fmtDateTime(n.createdAt))+'</div></div>';
+    }).join("")+
+    (unread?'<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost btn-sm" id="markNotifRead">'+bi("تعليم الكل كمقروء","Mark all as read")+'</button></div>':'')+'</div>';
+}
+function reportIssues(type,r){
+  var a=[]; if(!r) return a;
+  var src=type==="vehicle"?(r.checklist||{}):(r.items||{}), table=type==="vehicle"?VEHICLE_CHECK_ITEMS:EQUIPMENT_ITEMS;
+  Object.keys(src).forEach(function(k){
+    var c=src[k]||{}; if(!isProblem(c.status)) return;
+    var it=table.filter(function(x){ return x[0]===k; })[0], s=statusRow(c.status);
+    if(it) a.push(it[1]+(s?" ("+s[1]+")":""));
+  });
+  return a;
+}
+function vehicleIncomplete(v){ return !(v.plate&&v.city&&(v.vehicleType||v.type)&&v.fuel&&v.registrationExpiry&&v.insuranceExpiry&&v.inspectionExpiry&&v.driverLicenseExpiry&&v.ownerUid); }
+function lastReportBadge(r){ return r?(reportStatusBadge(r)+' <span class="hint">'+esc(fmtDate((r.createdAt||"").slice(0,10)))+'</span>'):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>'; }
+async function assignVehicle(uid,code,userObj){
+  var db=state.dbns, now=new Date().toISOString(), batch=db.batch();
+  var user=userObj||state.users.filter(function(u){ return u.id===uid; })[0]||{};
+  var known=state.allVehicleCodes||[];
+  if(code){ state.users.forEach(function(u){ if(u.id!==uid&&u.vehicleCode===code) batch.update(db.collection("users").doc(u.id),{vehicleCode:null}); }); }
+  if(uid&&user.vehicleCode&&user.vehicleCode!==code&&known.indexOf(user.vehicleCode)>=0)
+    batch.set(db.collection("vehicles").doc(user.vehicleCode),{ownerUid:null,ownerEmail:"",driverName:"",updatedAt:now},{merge:true});
+  if(uid) batch.update(db.collection("users").doc(uid),{vehicleCode:code||null});
+  if(code) batch.set(db.collection("vehicles").doc(code),{ownerUid:uid||null,ownerEmail:uid?(user.email||""):"",driverName:uid?(user.name||""):"",updatedAt:now},{merge:true});
+  await batch.commit();
+}
+async function saveReport(col,payload,editId){
+  var type=col==="vehicle_reports"?"vehicle":"equipment", now=new Date().toISOString(), uid=state.currentUser.uid, name=myName(), id=editId;
+  if(editId && (state.currentProfile||{}).role==="admin"){
+    delete payload.createdAt; delete payload.createdBy; delete payload.approvalStatus; delete payload.submittedByName;
+    payload.adminEditedAt=now; payload.adminEditedByName=name;
+    payload.history=firebase.firestore.FieldValue.arrayUnion({action:"admin_edited",by:uid,byName:name,at:now,from:"",to:""});
+    await state.dbns.collection(col).doc(editId).update(payload);
+    return;
+  }
+  if((state.currentProfile||{}).role!=="driver") throw new Error("only-driver-submits");
+  if(editId){
+    delete payload.createdAt; delete payload.createdBy;
+    payload.approvalStatus="pending"; payload.resubmittedAt=now;
+    payload.history=firebase.firestore.FieldValue.arrayUnion({action:"resubmitted",by:uid,byName:name,at:now,from:"returned",to:"pending"});
+    await state.dbns.collection(col).doc(editId).update(payload);
+  } else {
+    payload.createdBy=uid; payload.approvalStatus="pending";
+    payload.history=[{action:"submitted",by:uid,byName:name,at:now,from:"draft",to:"pending"}];
+    var ref=await state.dbns.collection(col).add(payload); id=ref.id;
+  }
+  var code=payload.vehicleCode||"", base={vehicleCode:code,reportId:id,reportType:type};
+  var kindAr=type==="vehicle"?"المركبة":"المعدات", kindEn=type==="vehicle"?"vehicle":"equipment";
+  pushNotif(Object.assign({},base,{recipientRole:"supervisor",titleAr:editId?"تقرير معدّل بانتظار المراجعة":"تقرير جديد بانتظار المراجعة",titleEn:editId?"Revised Report Pending Review":"New Report Pending Review",messageAr:"تقرير "+kindAr+" للمركبة "+code+" من "+name+".",messageEn:"A "+kindEn+" report for "+code+" from "+name+"."}));
+  var issues=reportIssues(type,payload);
+  if(issues.length) pushNotif(Object.assign({},base,{recipientRole:"admin",titleAr:"مشكلة في مركبة",titleEn:"Vehicle Issue Reported",messageAr:"المركبة "+code+": "+issues.slice(0,5).join("، "),messageEn:issues.length+" issue(s) reported for "+code+"."}));
+}
+function reviseReport(type,r){
+  var d=type==="vehicle"?freshVehicleDraft():freshEquipmentDraft();
+  Object.keys(d).forEach(function(k){ if(r[k]!==undefined&&r[k]!==null) d[k]=JSON.parse(JSON.stringify(r[k])); });
+  d._editId=r.id; d._returnReason=r.returnReason||r.supervisorNotes||"";
+  if(type==="vehicle"){ vehicleDraft=d; vehicleDraftRestored=false; saveVehicleDraft(); state.tab="vehicle"; }
+  else { equipmentDraft=d; equipmentDraftRestored=false; saveEquipmentDraft(); state.tab="equipment"; }
+  location.hash=state.tab; renderTabbar(); renderTab(); window.scrollTo(0,0);
+}
+function reviseBanner(d){
+  if(!d||!d._editId) return '';
+  if((state.currentProfile||{}).role==="admin") return '<div class="draft-note" style="display:block">'+bi("أنت تعدّل تقريرًا موجودًا بصلاحية المدير. حالة الاعتماد لا تتغير، والتعديل يُسجَّل في سجل الإجراءات. اضغط «إرسال التقرير» للحفظ.","You are editing an existing report as admin. Approval status is unchanged and the edit is logged. Press Submit to save.")+'</div>';
+  return '<div class="draft-note" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger);display:block">'+bi("أنت تعدّل تقريرًا أعاده المشرف. بعد التعديل اضغط «إرسال التقرير» لإعادة إرساله.","You are revising a report returned by the supervisor. Press Submit to resend it.")+(d._returnReason?'<div style="margin-top:6px">'+bi("سبب الإعادة: "+d._returnReason,"Return reason")+'</div>':'')+'</div>';
+}
+function reviewBlockHTML(type,r){
+  var evalTable=type==="vehicle"?VEHICLE_EVAL:EQUIP_EVAL;
+  var ev=evalTable.filter(function(e){ return e[0]===r.supervisorEvaluation; })[0];
+  var out='<div class="kv"><div class="kvi"><div class="k">'+bi("حالة الاعتماد","Approval Status")+'</div><div class="v">'+reportStatusBadge(r)+'</div></div>'+
+    kvi("المراجع","Reviewed By",r.reviewedByName)+kvi("وقت المراجعة","Reviewed At",r.reviewedAt?fmtDateTime(r.reviewedAt):"")+
+    '<div class="kvi"><div class="k">'+bi("تقييم المشرف","Supervisor Evaluation")+'</div><div class="v">'+(ev?'<span class="badge '+ev[3]+'">'+bi(ev[1],ev[2])+'</span>':"—")+'</div></div></div>';
+  if(r.approvalStatus==="returned"&&(r.returnReason||r.supervisorNotes)) out+='<div class="draft-note" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger);display:block">'+bi("سبب الإعادة: "+(r.returnReason||r.supervisorNotes),"Return reason")+'</div>';
+  else if(r.supervisorNotes) out+='<p><b>'+bi("ملاحظات المشرف","Supervisor Notes")+'</b><br>'+esc(r.supervisorNotes)+'</p>';
+  if(r.supervisorRequiredAction) out+='<p><b>'+bi("الإجراء المطلوب من المشرف","Supervisor Required Action")+'</b><br>'+esc(r.supervisorRequiredAction)+'</p>';
+  if(r.supervisorFollowupDate) out+='<p><b>'+bi("تاريخ المتابعة القادمة","Next Follow-up")+'</b> '+esc(fmtDate(r.supervisorFollowupDate))+'</p>';
+  return out;
+}
+function compareHTML(type,r){
+  var prev=type==="vehicle"?previousVehicleReport(r):previousEquipmentReport(r);
+  var head='<div class="section-bar" style="margin-top:6px">'+bi("المقارنة مع التقرير السابق","Comparison With Previous Report")+'</div>';
+  if(!prev) return head+'<p class="hint">'+bi("لا يوجد تقرير سابق للمقارنة.","No previous report to compare.")+'</p>';
+  var cur=type==="vehicle"?(r.checklist||{}):(r.items||{}), old=type==="vehicle"?(prev.checklist||{}):(prev.items||{}), table=type==="vehicle"?VEHICLE_CHECK_ITEMS:EQUIPMENT_ITEMS, rows=[];
+  table.forEach(function(it){
+    var c=(cur[it[0]]||{}).status, o=(old[it[0]]||{}).status;
+    if(isProblem(c)&&c!==o){ var cs=statusRow(c), os=statusRow(o); rows.push('<tr style="color:var(--danger);font-weight:700"><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+esc(os?os[1]+" / "+os[2]:"—")+'</td><td>'+esc(cs?cs[1]+" / "+cs[2]:c)+'</td></tr>'); }
+  });
+  var extra='';
+  if(type==="vehicle"&&Number(r.odometer)&&Number(prev.odometer)) extra='<p class="hint">'+bi("المسافة منذ التقرير السابق: "+(Number(r.odometer)-Number(prev.odometer))+" كم","Distance since previous report (km)")+'</p>';
+  var dt=fmtDate(type==="vehicle"?prev.inspectionDate:prev.date);
+  if(!rows.length) return head+'<p class="hint">'+bi("لا توجد مشكلات جديدة مقارنة بتقرير "+dt+".","No new issues compared with the previous report.")+'</p>'+extra;
+  return head+'<table class="rep-table"><thead><tr><th>البند / Item</th><th>السابق / Previous ('+esc(dt)+')</th><th>الحالي / Current</th></tr></thead><tbody>'+rows.join("")+'</tbody></table>'+extra;
+}
+function historyLogHTML(r){
+  var h=r.history||[]; if(!h.length) return '';
+  var names={submitted:"إرسال / Submitted",resubmitted:"إعادة إرسال / Resubmitted",approved:"اعتماد / Approved",returned:"إعادة للفني / Returned",review_edited:"تعديل المراجعة / Review Edited",admin_edited:"تعديل المدير / Admin Edited"};
+  return '<div class="section-bar" style="margin-top:12px">'+bi("سجل الإجراءات","Action Log")+'</div><table class="rep-table"><thead><tr><th>الإجراء / Action</th><th>المستخدم / User</th><th>الوقت / Time</th><th>الحالة / Status</th></tr></thead><tbody>'+
+    h.map(function(x){ return '<tr><td>'+esc(names[x.action]||x.action||"")+'</td><td>'+esc(x.byName||"")+'</td><td>'+esc(fmtDateTime(x.at))+'</td><td>'+esc((x.from||"")+" → "+(x.to||""))+'</td></tr>'; }).join("")+'</tbody></table>';
+}
+function buildDetailHTML(type,r,submitter){
+  var out=reviewBlockHTML(type,r)+compareHTML(type,r)+buildDetailBody(type,r,submitter);
+  if(type==="equipment"){
+    var keys=Object.keys(r.photos||{}).filter(function(k){ return r.photos[k]&&r.photos[k].url; });
+    if(keys.length){
+      out+='<div class="section-bar" style="margin-top:12px">'+bi("صور المعدات","Equipment Photos")+'</div><div class="thumb-row">'+keys.map(function(k){
+        var it=EQUIPMENT_ITEMS.filter(function(x){ return x[0]===k; })[0];
+        return '<img src="'+esc(r.photos[k].url)+'" alt="'+esc(it?it[1]:k)+'" title="'+esc(it?it[1]+" / "+it[2]:k)+'">';
+      }).join("")+'</div>';
+    }
+  }
+  return out+historyLogHTML(r);
+}
+
 function renderShell(){
-  var app = qs("#app");
+  var app = qs("#app"), p=state.currentProfile||{}, rl=ROLE_LABELS[p.role]||[p.role||"",""];
   app.innerHTML =
     '<header class="appbar"><div class="container appbar-inner">'+
       '<img class="appbar-logo" src="'+LOGO_DATA_URL+'" alt="Professional Step logo">'+
-      '<div class="appbar-titles"><b>أسطول خطوة محترف</b><span class="sub">Professional Step Fleet &amp; Equipment</span></div>'+
+      '<div class="appbar-titles"><b>أسطول خطوة محترف</b><span class="sub">Professional Step Fleet &amp; Equipment · V'+APP_VERSION+'</span></div>'+
       '<div class="appbar-spacer"></div>'+
       '<button class="btn btn-primary btn-sm" id="updateBtn" hidden>🔄 تحديث جديد / New Update</button>'+
       '<div class="user-chip" id="userChip"></div>'+
-      '<button class="btn btn-ghost btn-sm" id="logoutBtn">خروج</button>'+
+      '<button class="btn btn-ghost btn-sm" id="logoutBtn">'+biInline("خروج","Sign out")+'</button>'+
       '<div class="appbar-badge" id="connBadge">'+bi("جارٍ الاتصال…","Connecting…")+'</div>'+
     '</div>'+
     '<nav class="container tabbar" id="tabbar" role="tablist"></nav>'+
@@ -503,13 +674,15 @@ function renderShell(){
     '<main class="container" id="main"></main>';
   renderTabbar();
   renderTab();
-  var lo=qs("#logoutBtn"); if(lo) on(lo,"click",function(){ if(state.auth) state.auth.signOut(); });
-  var uc=qs("#userChip"); if(uc && state.currentProfile) uc.textContent=(state.currentProfile.name||state.currentUser.email)+" • "+(state.currentProfile.role||"");
+  on(qs("#logoutBtn"),"click",function(){ if(state.auth) state.auth.signOut(); });
+  var uc=qs("#userChip"); if(uc && state.currentUser) uc.textContent=(p.name||state.currentUser.email||"")+" • "+rl[0]+" / "+rl[1];
+  applyUpdateNotice();
 }
+
 
 function renderTabbar(){
   var bar = qs("#tabbar");
-  var visibleTabs=TABS.filter(function(t){ var r=state.currentProfile&&state.currentProfile.role; if(r==="driver"&&!state.currentProfile.vehicleCode) return t[0]==="dashboard"; if(r==="supervisor") return t[0]==="dashboard" || t[0]==="history"; return t[0]!=="users" || r==="admin"; });
+  var visibleTabs=TABS.filter(function(t){ var r=state.currentProfile&&state.currentProfile.role; if(r==="driver"&&!state.currentProfile.vehicleCode) return t[0]==="dashboard"; if(r==="supervisor") return t[0]==="dashboard" || t[0]==="history"; if(r==="admin") return t[0]==="dashboard" || t[0]==="history" || t[0]==="users"; return t[0]!=="users"; });
   bar.innerHTML = visibleTabs.map(function(t){
     return '<button class="tab" role="tab" data-tab="'+t[0]+'" aria-selected="'+(state.tab===t[0])+'">'+
       '<span class="ar">'+esc(t[1])+'</span><span class="en">'+esc(t[2])+'</span></button>';
@@ -526,8 +699,16 @@ function renderTabbar(){
 }
 
 function renderTab(){
-  var main = qs("#main");
-  if(state.currentProfile && state.currentProfile.role==="supervisor" && (state.tab==="vehicle" || state.tab==="equipment" || state.tab==="users")){ state.tab="dashboard"; location.hash="dashboard"; }
+  var main = qs("#main"); if(!main) return;
+  /* لا تُعد رسم لوحة المدير أثناء تعديل مركبة حتى لا تضيع المدخلات غير المحفوظة */
+  if(state.tab==="dashboard" && state.editingVeh && qs("#adminVehPanel-"+state.editingVeh)) return;
+  state.editingVeh=null;
+  var p=state.currentProfile||{}, role=p.role, t=state.tab;
+  if(role==="supervisor" && (t==="vehicle"||t==="equipment"||t==="users")) t="dashboard";
+  if(role==="driver" && (t==="users" || (!p.vehicleCode && t!=="dashboard"))) t="dashboard";
+  if(role!=="admin" && t==="users") t="dashboard";
+  if(role==="admin" && ((t==="vehicle"&&!vehicleDraft._editId)||(t==="equipment"&&!equipmentDraft._editId))) t="dashboard";
+  if(t!==state.tab){ state.tab=t; location.hash=t; renderTabbar(); return renderTab(); }
   if(state.tab==="dashboard") main.innerHTML = dashboardHTML();
   else if(state.tab==="vehicle") main.innerHTML = vehicleFormHTML();
   else if(state.tab==="equipment") main.innerHTML = equipmentFormHTML();
@@ -541,6 +722,7 @@ function renderTab(){
   if(state.tab==="history") wireHistory();
   if(state.tab==="users") wireUsers();
 }
+
 
 /* ========================================================================
    DASHBOARD
@@ -583,57 +765,51 @@ function vehicleDocStatus(labelAr,labelEn,iso,url){
 }
 function adminVehicleDetailsForm(v){
   if(!v) return '';
-  function f(id,ar,en,val,type){return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><input '+(type==='date'?'type="date"':'type="text"')+' id="'+id+'" value="'+esc(val||'')+'"></div>';}
+  function f(id,ar,en,val,type){ return '<div class="field"><label class="bi">'+bi(ar,en)+'</label><input '+(type==='date'?'type="date"':'type="text"')+' id="'+id+'" value="'+esc(val||'')+'"></div>'; }
+  var drivers=state.users.filter(function(u){ return u.role==="driver" && u.active!==false; });
+  var cur=drivers.filter(function(u){ return u.vehicleCode===v.code; })[0];
+  var dOpts='<option value="">— بدون فني / Unassigned —</option>'+drivers.map(function(u){
+    return '<option value="'+esc(u.id)+'"'+(cur&&cur.id===u.id?' selected':'')+'>'+esc((u.name||u.email||u.id)+(u.vehicleCode&&u.vehicleCode!==v.code?" ("+u.vehicleCode+")":""))+'</option>';
+  }).join("");
+  var fuels=["بنزين / Petrol","ديزل / Diesel"];
+  var fOpts='<option value="">—</option>'+fuels.map(function(x){ return '<option value="'+esc(x)+'"'+(v.fuel===x?' selected':'')+'>'+esc(x)+'</option>'; }).join("");
   return '<div class="card" id="adminVehPanel-'+esc(v.code)+'"><div class="section-bar">'+bi("إدارة بيانات المركبة "+v.code,"Manage Vehicle "+v.code)+'</div><div class="grid grid-3">'+
-    f('admPlate-'+v.code,'رقم اللوحة','Plate No.',v.plate)+f('admDriver-'+v.code,'اسم السائق','Driver Name',v.driverName)+
+    field_locked('admCity-'+v.code,'المدينة (مرتبطة بالكود)','City (tied to code)',cityLabel(v.city))+
+    f('admPlate-'+v.code,'رقم اللوحة','Plate No.',v.plate)+
+    '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><select id="admType-'+esc(v.code)+'">'+vehicleTypeOptions(v.vehicleType||v.type||"")+'</select></div>'+
+    '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel Type")+'</label><select id="admFuel-'+esc(v.code)+'">'+fOpts+'</select></div>'+
+    '<div class="field"><label class="bi">'+bi("الفني / السائق المسؤول","Assigned Technician")+'</label><select id="admDriverUid-'+esc(v.code)+'">'+dOpts+'</select></div>'+
     f('admRegExp-'+v.code,'انتهاء الاستمارة','Registration Expiry',v.registrationExpiry,'date')+f('admFahsExp-'+v.code,'انتهاء الفحص الدوري','Periodic Inspection Expiry',v.inspectionExpiry,'date')+f('admInsExp-'+v.code,'انتهاء التأمين','Insurance Expiry',v.insuranceExpiry,'date')+f('admLicExp-'+v.code,'انتهاء رخصة القيادة','Driver License Expiry',v.driverLicenseExpiry,'date')+
-    '</div><div class="section-bar leaf" style="margin-top:14px">'+bi("الوثائق","Documents")+'</div><div class="grid grid-2">'+adminDocField(v,'registrationDoc','صورة الاستمارة','Registration')+adminDocField(v,'insuranceDoc','وثيقة التأمين','Insurance')+adminDocField(v,'driverLicenseDoc','رخصة القيادة','Driver License')+adminDocField(v,'inspectionDoc','وثيقة الفحص الدوري','Periodic Inspection')+'</div><div class="btn-row" style="margin-top:14px"><button class="btn btn-primary btn-sm" data-savevehdetails="'+esc(v.code)+'">'+bi("حفظ بيانات المركبة","Save Vehicle Details")+'</button></div></div>';
+    '</div><div class="section-bar leaf" style="margin-top:14px">'+bi("الوثائق","Documents")+'</div><div class="grid grid-2">'+adminDocField(v,'registrationDoc','صورة الاستمارة','Registration')+adminDocField(v,'insuranceDoc','وثيقة التأمين','Insurance')+adminDocField(v,'driverLicenseDoc','رخصة القيادة','Driver License')+adminDocField(v,'inspectionDoc','وثيقة الفحص الدوري','Periodic Inspection')+'</div><div class="btn-row" style="margin-top:14px"><button class="btn btn-primary btn-sm" data-savevehdetails="'+esc(v.code)+'">'+bi("حفظ بيانات المركبة","Save Vehicle Details")+'</button><button class="btn btn-ghost btn-sm" id="closeVehEditor">'+bi("إغلاق","Close")+'</button></div></div>';
 }
+
 function adminDocField(v,key,ar,en){
   var url=v[key]||'';
   return '<div class="item-card"><b>'+bi(ar,en)+'</b><div class="btn-row" style="margin-top:8px">'+(url?'<a class="btn btn-outline btn-sm" href="'+esc(url)+'" target="_blank">'+bi("عرض الحالي","View Current")+'</a>':'<span class="badge neutral">'+bi("جاري رفعها","In Progress")+'</span>')+'<label class="btn btn-ghost btn-sm">'+bi("رفع / استبدال","Upload / Replace")+'<input type="file" accept="image/*,application/pdf" style="display:none" data-admindoc="'+esc(v.code)+'|'+key+'"></label></div><div class="photo-status" data-admindocstatus="'+esc(v.code)+'|'+key+'"></div></div>';
 }
 
-function driverVehicleManageForm(v){
-  var editing=!!v;
-  var arTitle=editing?"تعديل بيانات مركبتي":"إضافة مركبتي", enTitle=editing?"Edit My Vehicle":"Add My Vehicle";
-  var arHint=editing?"يمكنك تعديل بيانات مركبتك وحفظ التغييرات.":"أدخل بيانات مركبتك مرة واحدة، وبعد الحفظ ستظهر لك مركبتك وتقاريرها فقط.";
-  var enHint=editing?"You can edit your vehicle details and save the changes.":"Enter your vehicle details once. After saving, you will only see your vehicle and its reports.";
-  return '<div class="card" style="margin-top:14px">'+
-    '<div class="section-bar">'+bi(arTitle,enTitle)+'</div><div class="hint" style="margin-bottom:12px">'+bi(arHint,enHint)+'</div><div class="manage-row">'+
-    '<div class="field"><label class="bi">'+bi("كود المركبة","Vehicle Code")+'</label><input type="text" id="drvCode" value="'+esc(editing?(v.code||""):"")+'" placeholder="Auto: JED-01 / RIY-01" readonly></div>'+
-    '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><select id="drvCity"><option value="Jeddah" '+((v&&v.city)==="Jeddah"?"selected":"")+'>جدة / Jeddah</option><option value="Riyadh" '+((v&&v.city)==="Riyadh"?"selected":"")+'>الرياض / Riyadh</option></select></div>'+
-    '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><select id="drvType">'+vehicleTypeOptions(editing?(v.vehicleType||v.type||""):"")+'</select></div>'+
-    '<div class="field"><label class="bi">'+bi("رقم اللوحة","Plate No.")+'</label><input type="text" id="drvPlate" value="'+esc(editing?(v.plate||""):"")+'"></div>'+ 
-    '<div class="field"><label class="bi">'+bi("اسم السائق","Driver Name")+'</label><input type="text" id="drvDriver" value="'+esc(editing?(v.driverName||((state.currentProfile||{}).name)||""):"")+'"></div>'+ 
-    '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel")+'</label><select id="drvFuel"><option value="بنزين / Petrol" '+((v&&v.fuel)==="بنزين / Petrol"?"selected":"")+'>بنزين / Petrol</option><option value="ديزل / Diesel" '+((v&&v.fuel)==="ديزل / Diesel"?"selected":"")+'>ديزل / Diesel</option></select></div>'+ 
-    '<button class="btn btn-primary btn-sm" id="drvSaveVehicle" data-editing="'+(editing?"1":"0")+'">'+bi(editing?"حفظ التعديل":"إضافة المركبة",editing?"Save Changes":"Add Vehicle")+'</button></div></div>';
-}
-async function findNextVehicleCode(city){
-  var prefix=city==="Riyadh"?"RIY":"JED", max=0;
-  try{
-    var snap=await state.dbns.collection("vehicles").get();
-    snap.forEach(function(d){var m=String(d.id||"").match(new RegExp("^"+prefix+"-(\\d+)$"));if(m)max=Math.max(max,+m[1]);});
-  }catch(e){state.vehicles.forEach(function(v){var m=String(v.code||"").match(new RegExp("^"+prefix+"-(\\d+)$"));if(m)max=Math.max(max,+m[1]);});}
-  return prefix+"-"+String(max+1).padStart(2,"0");
-}
+
+
 
 function driverDashboardHTML(){
-  var p=state.currentProfile||{};
-  var code=p.vehicleCode||"";
-  var v=code ? (state.vehicles.filter(function(x){return x.code===code;})[0] || null) : null;
+  var p=state.currentProfile||{}, v=assignedVehicle();
   if(!v){
-    return '<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("لم يتم ربط مركبة بحسابك بعد","No Vehicle Assigned Yet")+'</div><div style="font-size:12.5px">'+bi("سيقوم المدير بربط المركبة بحسابك. لا تحتاج إلى إضافة المركبة بنفسك.","The administrator will assign your vehicle. You do not need to add it yourself.")+'</div></div>';
+    return notificationsHTML()+'<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("لم يتم ربط مركبة بحسابك بعد","No Vehicle Assigned Yet")+'</div><div style="font-size:12.5px">'+bi("سيقوم المدير بربط المركبة بحسابك. لا تحتاج إلى إضافة المركبة بنفسك.","The administrator will assign your vehicle. You do not need to add it yourself.")+'</div></div>';
   }
   var lr=latestReportFor(v.code,state.vReports), le=latestReportFor(v.code,state.eReports);
-  var recent=state.vReports.map(function(r){return {type:"vehicle",r:r};}).concat(state.eReports.map(function(r){return {type:"equipment",r:r};})).filter(function(x){return x.r.vehicleCode===v.code;}).sort(function(a,b){return (b.r.createdAt||"")>(a.r.createdAt||"")?1:-1;}).slice(0,5);
-  return '<div class="section-bar leaf">'+bi("مركبتي","My Vehicle")+'</div>'+ 
-    '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+pendingValue(v.plate)+' · '+pendingValue(v.city)+' · '+pendingValue(v.vehicleType||v.type)+'</div></div></div>'+ 
-    '<div class="veh-rows"><div class="r"><span class="k">'+bi("اسم السائق","Driver")+'</span><span>'+pendingValue(v.driverName||p.name)+'</span></div><div class="r"><span class="k">'+bi("آخر فحص مركبة","Last Vehicle Check")+'</span>'+(lr?evalFromCodeBadge(lr.evaluation,VEHICLE_EVAL):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div><div class="r"><span class="k">'+bi("آخر فحص معدات","Last Equipment Check")+'</span>'+(le?evalFromCodeBadge(le.finalEvaluation,EQUIP_EVAL):'<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div></div>'+ 
-    '<div class="btn-row"><button class="btn btn-primary btn-sm" data-newveh="'+esc(v.code)+'">'+bi("رفع تقرير تحديث المركبة","Vehicle Update Report")+'</button><button class="btn btn-leaf btn-sm" data-neweq="'+esc(v.code)+'">'+bi("رفع تقرير المعدات","Equipment Report")+'</button></div></div>'+ 
-    '<div class="section-bar" style="margin-top:16px">'+bi("الوثائق والتواريخ","Documents & Expiry Dates")+'</div><div class="grid grid-2">'+vehicleDocStatus('الاستمارة','Registration',v.registrationExpiry,v.registrationDoc)+vehicleDocStatus('الفحص الدوري','Periodic Inspection',v.inspectionExpiry,v.inspectionDoc)+vehicleDocStatus('التأمين','Insurance',v.insuranceExpiry,v.insuranceDoc)+vehicleDocStatus('رخصة القيادة','Driver License',v.driverLicenseExpiry,v.driverLicenseDoc)+'</div>'+ 
+  var mine=state.vReports.map(function(r){return {type:"vehicle",r:r};}).concat(state.eReports.map(function(r){return {type:"equipment",r:r};})).filter(function(x){return x.r.vehicleCode===v.code;}).sort(function(a,b){return (b.r.createdAt||"").localeCompare(a.r.createdAt||"");});
+  var returned=mine.filter(function(x){ return x.r.approvalStatus==="returned"; });
+  var retHTML=returned.length?'<div class="draft-note" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger);display:block">'+bi("لديك "+returned.length+" تقرير معاد للتعديل. افتحه لمعرفة السبب ثم عدّله وأعد إرساله.","You have "+returned.length+" returned report(s). Open to see the reason, revise and resubmit.")+'</div>'+returned.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'';
+  var recent=mine.slice(0,6);
+  return retHTML+'<div class="section-bar leaf">'+bi("مركبتي","My Vehicle")+'</div>'+
+    '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+pendingValue(v.plate)+' · '+pendingValue(cityLabel(v.city))+' · '+pendingValue(vehTypeLabel(v.vehicleType||v.type))+'</div></div></div>'+
+    '<div class="veh-rows"><div class="r"><span class="k">'+bi("اسم السائق","Driver")+'</span><span>'+pendingValue(v.driverName||p.name)+'</span></div><div class="r"><span class="k">'+bi("نوع الوقود","Fuel")+'</span><span>'+pendingValue(v.fuel)+'</span></div><div class="r"><span class="k">'+bi("آخر تقرير مركبة","Last Vehicle Report")+'</span><span>'+lastReportBadge(lr)+'</span></div><div class="r"><span class="k">'+bi("آخر تقرير معدات","Last Equipment Report")+'</span><span>'+lastReportBadge(le)+'</span></div></div>'+
+    '<div class="btn-row"><button class="btn btn-primary" data-newveh="'+esc(v.code)+'">'+bi("رفع تقرير المركبة","Vehicle Report")+'</button><button class="btn btn-leaf" data-neweq="'+esc(v.code)+'">'+bi("رفع تقرير المعدات","Equipment Report")+'</button></div></div>'+
+    notificationsHTML()+
+    '<div class="section-bar" style="margin-top:16px">'+bi("الوثائق والتواريخ","Documents & Expiry Dates")+'</div><div class="grid grid-2">'+vehicleDocStatus('الاستمارة','Registration',v.registrationExpiry,v.registrationDoc)+vehicleDocStatus('الفحص الدوري','Periodic Inspection',v.inspectionExpiry,v.inspectionDoc)+vehicleDocStatus('التأمين','Insurance',v.insuranceExpiry,v.insuranceDoc)+vehicleDocStatus('رخصة القيادة','Driver License',v.driverLicenseExpiry,v.driverLicenseDoc)+'</div>'+
     '<div class="section-bar" style="margin-top:16px">'+bi("تقاريري الأخيرة","My Recent Reports")+'</div><div>'+(recent.length?recent.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>')+'</div>';
 }
+
 function reportStatusBadge(r){
   var st=r.approvalStatus||"legacy";
   if(st==="pending") return '<span class="badge warn">'+bi("بانتظار الاعتماد","Pending Approval")+'</span>';
@@ -642,109 +818,81 @@ function reportStatusBadge(r){
   return '<span class="badge neutral">'+bi("سابق","Legacy")+'</span>';
 }
 function vehicleProblemSummary(code){
-  var r=latestReportFor(code,state.vReports); if(!r) return bi("لا يوجد تقرير","No report yet");
-  var a=[]; Object.keys(r.checklist||{}).forEach(function(k){var c=r.checklist[k]||{};if(c.status==="maintenance"||c.status==="followup"){var it=VEHICLE_CHECK_ITEMS.filter(function(x){return x[0]===k;})[0];if(it)a.push(it[1]);}});
-  if(r.faults)a.push(r.faults); return a.length?esc(a.slice(0,3).join("، ")):bi("لا توجد مشاكل مسجلة","No reported issues");
+  var lv=latestReportFor(code,state.vReports), le=latestReportFor(code,state.eReports);
+  if(!lv&&!le) return bi("لا يوجد تقرير","No report yet");
+  var a=reportIssues("vehicle",lv).concat(reportIssues("equipment",le));
+  return a.length?'<span style="color:var(--danger);font-weight:700">'+esc(a.slice(0,4).join("، "))+(a.length>4?" +"+(a.length-4):"")+'</span>':bi("لا توجد مشاكل مسجلة","No reported issues");
 }
+
 function supervisorDashboardHTML(){
-  var pending=state.vReports.concat(state.eReports).filter(function(r){return r.approvalStatus==="pending";}).length;
-  var notices=(state.notifications||[]).slice(0,5);
-  var noticeHTML=notices.length?'<div class="section-bar leaf">'+bi("إشعارات النظام","System Notifications")+'</div><div class="card">'+notices.map(function(n){return '<div style="padding:9px 0;border-bottom:1px solid #e6ece4"><b>'+esc(n.titleAr||n.title||"إشعار")+'</b><div class="en">'+esc(n.titleEn||"")+'</div><div class="hint">'+esc(n.messageAr||n.message||"")+'</div></div>';}).join("")+'</div>':'';
-  var cards=state.vehicles.map(function(v){
-    var reports=state.vReports.concat(state.eReports).filter(function(r){return r.vehicleCode===v.code;});
-    var pend=reports.filter(function(r){return r.approvalStatus==="pending";}).length;
-    var last=reports.sort(function(a,b){return (b.createdAt||"").localeCompare(a.createdAt||"");})[0];
-    return '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+pendingValue(v.plate)+' · '+pendingValue(v.driverName)+'</div></div>'+ (pend?'<span class="badge warn">'+pend+' '+bi("بانتظار الاعتماد","Pending")+'</span>':'<span class="badge ok">'+bi("لا يوجد معلق","No Pending")+'</span>')+'</div><div class="veh-rows"><div class="r"><span class="k">'+bi("السائق","Driver")+'</span><span>'+pendingValue(v.driverName)+'</span></div><div class="r"><span class="k">'+bi("آخر تقرير","Last Report")+'</span><span>'+(last?fmtDate((last.createdAt||"").slice(0,10)):"—")+'</span></div><div class="r"><span class="k">'+bi("المشاكل المختصرة","Issue Summary")+'</span><span>'+vehicleProblemSummary(v.code)+'</span></div></div><div class="btn-row"><button class="btn btn-primary btn-sm" data-superveh="'+esc(v.code)+'">'+bi("فتح سجل المركبة","Open Vehicle Record")+'</button></div></div>';
+  var codes={}; state.vehicles.forEach(function(v){ codes[v.code]=1; });
+  var all=state.vReports.concat(state.eReports).filter(function(r){ return codes[r.vehicleCode]; });
+  var pending=all.filter(function(r){ return r.approvalStatus==="pending"; }).length;
+  var returned=all.filter(function(r){ return r.approvalStatus==="returned"; }).length;
+  var list=state.vehicles.map(function(v){
+    var reports=all.filter(function(r){ return r.vehicleCode===v.code; }).sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); });
+    return {v:v,pend:reports.filter(function(r){ return r.approvalStatus==="pending"; }).length,last:reports[0]};
+  }).sort(function(a,b){ return b.pend-a.pend || (a.v.code||"").localeCompare(b.v.code||""); });
+  var cards=list.map(function(x){
+    var v=x.v;
+    return '<div class="veh-card"><div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+pendingValue(v.plate)+' · '+pendingValue(cityLabel(v.city))+'</div></div>'+(x.pend?'<span class="badge warn">'+x.pend+' '+bi("بانتظار الاعتماد","Pending")+'</span>':'<span class="badge ok">'+bi("لا يوجد معلق","No Pending")+'</span>')+'</div><div class="veh-rows"><div class="r"><span class="k">'+bi("السائق","Driver")+'</span><span>'+pendingValue(v.driverName)+'</span></div><div class="r"><span class="k">'+bi("آخر تقرير","Last Report")+'</span><span>'+lastReportBadge(x.last)+'</span></div><div class="r"><span class="k">'+bi("المشكلات المكتشفة","Detected Issues")+'</span><span>'+vehicleProblemSummary(v.code)+'</span></div></div><div class="btn-row"><button class="btn btn-primary btn-sm" data-superveh="'+esc(v.code)+'">'+bi("فتح سجل المركبة","Open Vehicle Record")+'</button></div></div>';
   }).join("");
-  return '<div class="stats"><div class="stat"><div class="num">'+state.vehicles.length+'</div><div class="lbl">'+bi("المركبات","Vehicles")+'</div></div><div class="stat '+(pending?'warn':'ok')+'"><div class="num">'+pending+'</div><div class="lbl">'+bi("بانتظار الاعتماد","Pending Approval")+'</div></div></div>'+noticeHTML+'<div class="section-bar">'+bi("لوحة متابعة المركبات","Vehicle Review Dashboard")+'</div><div class="grid grid-3">'+(cards||'<div class="empty-state">'+bi("لا توجد مركبات","No vehicles")+'</div>')+'</div>';
+  return '<div class="stats"><div class="stat"><div class="num">'+state.vehicles.length+'</div><div class="lbl">'+bi("المركبات","Vehicles")+'</div></div><div class="stat '+(pending?'warn':'ok')+'"><div class="num">'+pending+'</div><div class="lbl">'+bi("بانتظار الاعتماد","Pending Approval")+'</div></div><div class="stat '+(returned?'danger':'ok')+'"><div class="num">'+returned+'</div><div class="lbl">'+bi("معاد للفني","Returned")+'</div></div></div>'+notificationsHTML()+'<div class="section-bar">'+bi("لوحة الإشراف — المركبات","Supervision Board — Vehicles")+'</div><div class="grid grid-3 veh-grid">'+(cards||'<div class="empty-state">'+bi("لا توجد مركبات","No vehicles")+'</div>')+'</div>';
 }
+
 function dashboardHTML(){
-  if(state.currentProfile && state.currentProfile.role==="driver") return driverDashboardHTML();
-  if(state.currentProfile && state.currentProfile.role==="supervisor") return supervisorDashboardHTML();
-  var vehicles = state.vehicles;
-  var vReports = state.vReports, eReports = state.eReports;
-  var maintCount = 0;
+  var role=(state.currentProfile||{}).role;
+  if(role==="driver") return driverDashboardHTML();
+  if(role==="supervisor") return supervisorDashboardHTML();
+  var vehicles=state.vehicles, vReports=state.vReports, eReports=state.eReports, all=vReports.concat(eReports);
+  var pending=all.filter(function(r){ return r.approvalStatus==="pending"; }).length, issues=0, expiring=0;
   vehicles.forEach(function(v){
-    var lr = latestReportFor(v.code, vReports);
-    if(lr && lr.checklist){ Object.keys(lr.checklist).forEach(function(k){ if(lr.checklist[k] && lr.checklist[k].status==="maintenance") maintCount++; }); }
-    var le = latestReportFor(v.code, eReports);
-    if(le && le.items){ Object.keys(le.items).forEach(function(k){ if(le.items[k] && (le.items[k].status==="not_sound" || le.items[k].status==="missing")) maintCount++; }); }
+    issues+=reportIssues("vehicle",latestReportFor(v.code,vReports)).length+reportIssues("equipment",latestReportFor(v.code,eReports)).length;
+    [v.registrationExpiry,v.insuranceExpiry,v.inspectionExpiry,v.driverLicenseExpiry].forEach(function(d){ var n=daysUntil(d); if(n!==null&&n<=30) expiring++; });
   });
-  var expiringSoon = 0;
-  vehicles.forEach(function(v){
-    var lr = latestReportFor(v.code, vReports);
-    if(lr){
-      [lr.estemaraExpiry,lr.fahsExpiry,lr.insuranceExpiry].forEach(function(d){
-        var n = daysUntil(d); if(n!==null && n<=30) expiringSoon++;
-      });
-    }
-  });
-
-  var statsHTML =
-    '<div class="stats">'+
-      '<div class="stat"><div class="num">'+vehicles.length+'</div><div class="lbl">'+bi("عدد المركبات","Vehicles")+'</div></div>'+
-      '<div class="stat"><div class="num">'+(monthCount(vReports)+monthCount(eReports))+'</div><div class="lbl">'+bi("تقارير هذا الشهر","Reports This Month")+'</div></div>'+
-      '<div class="stat '+(maintCount>0?"warn":"ok")+'"><div class="num">'+maintCount+'</div><div class="lbl">'+bi("بنود تحتاج صيانة","Items Needing Maintenance")+'</div></div>'+
-      '<div class="stat '+(expiringSoon>0?"danger":"ok")+'"><div class="num">'+expiringSoon+'</div><div class="lbl">'+bi("وثائق قريبة الانتهاء","Documents Expiring Soon")+'</div></div>'+
-    '</div>';
-
+  var statsHTML='<div class="stats">'+
+    '<div class="stat"><div class="num">'+vehicles.length+'</div><div class="lbl">'+bi("عدد المركبات","Vehicles")+'</div></div>'+
+    '<div class="stat"><div class="num">'+(monthCount(vReports)+monthCount(eReports))+'</div><div class="lbl">'+bi("تقارير هذا الشهر","Reports This Month")+'</div></div>'+
+    '<div class="stat '+(pending?"warn":"ok")+'"><div class="num">'+pending+'</div><div class="lbl">'+bi("بانتظار اعتماد المشرف","Pending Supervisor Approval")+'</div></div>'+
+    '<div class="stat '+(issues?"warn":"ok")+'"><div class="num">'+issues+'</div><div class="lbl">'+bi("مشكلات في آخر التقارير","Issues in Latest Reports")+'</div></div>'+
+    '<div class="stat '+(expiring?"danger":"ok")+'"><div class="num">'+expiring+'</div><div class="lbl">'+bi("وثائق منتهية أو قريبة الانتهاء","Documents Expired / Expiring")+'</div></div>'+
+  '</div>';
   var vehCards;
-  if(!state.vehiclesLoaded){
-    vehCards = '<div class="empty-state">'+bi("جارٍ تحميل المركبات…","Loading vehicles…")+'</div>';
-  } else if(vehicles.length===0){
-    vehCards = '<div class="empty-state card"><div class="big">🚐</div>'+
-      '<div style="font-weight:800;margin-bottom:4px">'+bi("لا توجد مركبات بعد","No vehicles yet")+'</div>'+
-      '<div style="font-size:12.5px">'+bi("أضف أول مركبة من النموذج أدناه","Add your first vehicle below")+'</div></div>';
-  } else {
-    vehCards = '<div class="grid grid-3">'+vehicles.map(function(v){
-      var lr = latestReportFor(v.code, vReports);
-      var le = latestReportFor(v.code, eReports);
-      return '<div class="veh-card">'+
-        '<div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div>'+
-          '<div class="veh-sub">'+esc(v.city||"")+' · '+esc(v.vehicleType||v.type||"")+'</div></div></div>'+
-        '<div class="veh-rows">'+
-          '<div class="r"><span class="k">'+bi("آخر فحص مركبة","Last Vehicle Check")+'</span>'+
-            (lr? evalFromCodeBadge(lr.evaluation, VEHICLE_EVAL) : '<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div>'+
-          '<div class="r"><span class="k">'+bi("آخر فحص معدات","Last Equipment Check")+'</span>'+
-            (le? evalFromCodeBadge(le.finalEvaluation, EQUIP_EVAL) : '<span class="badge neutral">'+bi("لا يوجد","None")+'</span>')+'</div>'+
-        '</div>'+
-        (lr? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
-            expiryBadge(lr.estemaraExpiry,"استمارة","")+expiryBadge(lr.fahsExpiry,"فحص","")+expiryBadge(lr.insuranceExpiry,"تأمين","") +
-          '</div>' : '')+
-        '<div class="btn-row">'+
-          '<button class="btn btn-outline btn-sm" data-newveh="'+esc(v.code)+'">'+bi("+ تقرير مركبة","+ Vehicle")+'</button>'+
-          '<button class="btn btn-outline btn-sm" data-neweq="'+esc(v.code)+'">'+bi("+ تقرير معدات","+ Equipment")+'</button>'+
-          ((state.currentProfile&&state.currentProfile.role==="admin")?'<button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger)" data-delveh="'+esc(v.code)+'">حذف المركبة / Delete</button>':'')+
-        '</div>'+
-      '</div>';
-    }).join("")+'</div>';
-    if(state.currentProfile&&state.currentProfile.role==="admin") vehCards += '<div id="adminVehicleEditorHost"></div>';
-  }
-
-  var recent = vReports.map(function(r){return {type:"vehicle",r:r};})
-    .concat(eReports.map(function(r){return {type:"equipment",r:r};}))
-    .sort(function(a,b){ return (b.r.createdAt||"") > (a.r.createdAt||"") ? 1 : -1; })
-    .slice(0,8);
-  var recentHTML = recent.length ? recent.map(function(x){ return historyRowHTML(x.type,x.r); }).join("") :
-    '<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>';
-
-  return statsHTML +
-    '<div class="section-bar leaf">'+bi("المركبات","Vehicles")+'</div>'+
-    vehCards +
-    ((state.currentProfile&&state.currentProfile.role==="admin")?'<div class="card" style="margin-top:14px">'+
-      '<div class="section-bar">'+bi("إضافة مركبة جديدة","Add New Vehicle")+'</div>'+
-      '<div class="manage-row">'+
-        '<div class="field"><label class="bi">'+bi("كود المركبة","Vehicle Code")+'</label><input type="text" id="mvCode" placeholder="Auto: JED-01 / RIY-01" readonly></div>'+
-        '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><select id="mvCity"><option value="Jeddah">جدة / Jeddah</option><option value="Riyadh">الرياض / Riyadh</option></select></div>'+
-        '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><select id="mvType">'+vehicleTypeOptions("")+'</select></div>'+
-        '<div class="field"><label class="bi">'+bi("رقم اللوحة","Plate No.")+'</label><input type="text" id="mvPlate"></div>'+
-        '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel")+'</label><select id="mvFuel"><option value="بنزين / Petrol">'+bi("بنزين","Petrol")+'</option><option value="ديزل / Diesel">'+bi("ديزل","Diesel")+'</option></select></div>'+
-        '<button class="btn btn-primary btn-sm" id="mvAdd">'+bi("إضافة","Add")+'</button>'+
+  if(!state.vehiclesLoaded) vehCards='<div class="empty-state">'+bi("جارٍ تحميل المركبات…","Loading vehicles…")+'</div>';
+  else if(!vehicles.length) vehCards='<div class="empty-state card"><div class="big">🚐</div><div style="font-weight:800;margin-bottom:4px">'+bi("لا توجد مركبات بعد","No vehicles yet")+'</div><div style="font-size:12.5px">'+bi("أضف أول مركبة من النموذج أدناه","Add your first vehicle below")+'</div></div>';
+  else vehCards='<div class="grid grid-3 veh-grid">'+vehicles.map(function(v){
+    return '<div class="veh-card">'+
+      '<div class="veh-card-top"><div><div class="veh-code">'+esc(v.code)+'</div><div class="veh-sub">'+pendingValue(v.plate)+' · '+esc(cityLabel(v.city))+' · '+pendingValue(vehTypeLabel(v.vehicleType||v.type))+'</div></div>'+(vehicleIncomplete(v)?'<span class="badge neutral">'+bi("جاري استكمال البيانات","In Progress")+'</span>':'')+'</div>'+
+      '<div class="veh-rows">'+
+        '<div class="r"><span class="k">'+bi("الفني المسؤول","Assigned Technician")+'</span><span>'+(v.ownerUid?esc(v.driverName||"—"):'<span class="badge warn">'+bi("غير معيّن","Unassigned")+'</span>')+'</span></div>'+
+        '<div class="r"><span class="k">'+bi("آخر تقرير مركبة","Last Vehicle Report")+'</span><span>'+lastReportBadge(latestReportFor(v.code,vReports))+'</span></div>'+
+        '<div class="r"><span class="k">'+bi("آخر تقرير معدات","Last Equipment Report")+'</span><span>'+lastReportBadge(latestReportFor(v.code,eReports))+'</span></div>'+
+        '<div class="r"><span class="k">'+bi("المشكلات","Issues")+'</span><span>'+vehicleProblemSummary(v.code)+'</span></div>'+
       '</div>'+
-    '</div>':'')+
-    '<div class="section-bar">'+bi("آخر النشاطات","Recent Activity")+'</div>'+
-    '<div>'+recentHTML+'</div>';
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+expiryBadge(v.registrationExpiry,"استمارة","")+expiryBadge(v.inspectionExpiry,"فحص","")+expiryBadge(v.insuranceExpiry,"تأمين","")+expiryBadge(v.driverLicenseExpiry,"رخصة","")+'</div>'+
+      '<div class="btn-row">'+
+        '<button class="btn btn-primary btn-sm" data-editveh="'+esc(v.code)+'">'+bi("تعديل / تعيين / وثائق","Edit / Assign / Docs")+'</button>'+
+        '<button class="btn btn-outline btn-sm" data-superveh="'+esc(v.code)+'">'+bi("السجل","Record")+'</button>'+
+        '<button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger)" data-delveh="'+esc(v.code)+'">'+bi("حذف المركبة","Delete Vehicle")+'</button>'+
+      '</div></div>';
+  }).join("")+'</div>';
+  var recent=vReports.map(function(r){return {type:"vehicle",r:r};}).concat(eReports.map(function(r){return {type:"equipment",r:r};})).sort(function(a,b){ return (b.r.createdAt||"").localeCompare(a.r.createdAt||""); }).slice(0,8);
+  var recentHTML=recent.length?recent.map(function(x){ return historyRowHTML(x.type,x.r); }).join(""):'<div class="empty-state">'+bi("لا توجد تقارير بعد","No reports yet")+'</div>';
+  return statsHTML+notificationsHTML()+
+    '<div class="section-bar leaf">'+bi("المركبات","Vehicles")+'</div>'+vehCards+'<div id="adminVehicleEditorHost"></div>'+
+    '<div class="card" style="margin-top:14px"><div class="section-bar">'+bi("إضافة مركبة جديدة","Add New Vehicle")+'</div>'+
+      '<div class="hint" style="margin-bottom:10px">'+bi("يكفي رقم اللوحة والمدينة للبدء، ويمكن استكمال بقية البيانات لاحقًا.","Plate and city are enough to start; complete the rest later.")+'</div>'+
+      '<div class="manage-row">'+
+        '<div class="field"><label class="bi">'+bi("كود المركبة (تلقائي)","Vehicle Code (auto)")+'</label><input type="text" id="mvCode" readonly></div>'+
+        '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><select id="mvCity"><option value="Jeddah">جدة / Jeddah</option><option value="Riyadh">الرياض / Riyadh</option></select></div>'+
+        '<div class="field"><label class="bi">'+bi("رقم اللوحة","Plate No.")+'</label><input type="text" id="mvPlate"></div>'+
+        '<div class="field"><label class="bi">'+bi("نوع المركبة","Vehicle Type")+'</label><select id="mvType">'+vehicleTypeOptions("")+'</select></div>'+
+        '<div class="field"><label class="bi">'+bi("نوع الوقود","Fuel")+'</label><select id="mvFuel"><option value="">—</option><option value="بنزين / Petrol">بنزين / Petrol</option><option value="ديزل / Diesel">ديزل / Diesel</option></select></div>'+
+        '<button class="btn btn-primary btn-sm" id="mvAdd">'+bi("إضافة","Add")+'</button>'+
+      '</div></div>'+
+    '<div class="section-bar">'+bi("آخر النشاطات","Recent Activity")+'</div><div>'+recentHTML+'</div>';
 }
+
 function evalFromCodeBadge(code, table){
   var row = table.filter(function(r){return r[0]===code;})[0];
   if(!row) return '<span class="badge neutral">'+bi("—","—")+'</span>';
@@ -753,98 +901,101 @@ function evalFromCodeBadge(code, table){
 
 
 function nextVehicleCode(city){
-  var prefix=city==="Riyadh"?"RIY":"JED"; var max=0; state.vehicles.forEach(function(v){var m=String(v.code||"").match(new RegExp("^"+prefix+"-(\\d+)$")); if(m)max=Math.max(max,+m[1]);}); return prefix+"-"+String(max+1).padStart(2,"0");
+  var prefix=city==="Riyadh"?"RIY":"JED", max=0, re=new RegExp("^"+prefix+"-(\\d+)$");
+  (state.allVehicleCodes||[]).concat(state.vehicles.map(function(v){ return v.code; })).forEach(function(c){ var m=String(c||"").match(re); if(m) max=Math.max(max,+m[1]); });
+  return prefix+"-"+String(max+1).padStart(2,"0");
 }
 
-function wireDriverVehicleManager(){
-  var city=qs("#drvCity"), code=qs("#drvCode"), save=qs("#drvSaveVehicle");
-  if(!city||!code||!save) return;
-  var editing=save.getAttribute("data-editing")==="1";
-  async function refreshCode(){if(!editing) code.value=await findNextVehicleCode(city.value);}
-  refreshCode(); on(city,"change",refreshCode);
-  on(save,"click",async function(){
-    var c=(code.value||"").trim(); if(!c){c=await findNextVehicleCode(city.value);code.value=c;}
-    var body={code:c,city:city.value,vehicleType:(qs("#drvType").value||"").trim(),plate:(qs("#drvPlate").value||"").trim(),driverName:(qs("#drvDriver").value||"").trim(),fuel:qs("#drvFuel").value||"",active:true,ownerUid:state.currentUser.uid,ownerEmail:state.currentUser.email||"",updatedAt:new Date().toISOString()};
-    if(!editing)body.createdAt=new Date().toISOString(); save.disabled=true;
-    try{
-      if(editing){var existing=await state.dbns.collection("vehicles").doc(c).get();if(!existing.exists||(existing.data().ownerUid&&existing.data().ownerUid!==state.currentUser.uid))throw new Error("not-owner");await state.dbns.collection("vehicles").doc(c).set(body,{merge:true});}
-      else{await state.dbns.collection("vehicles").doc(c).set(body);}
-      state.currentProfile.vehicleCode=c; try{await state.dbns.collection("users").doc(state.currentUser.uid).update({vehicleCode:c});}catch(ignore){}
-      showToast(editing?"تم حفظ تعديل المركبة":"تمت إضافة مركبتك",editing?"Vehicle changes saved":"Your vehicle was added"); renderTabbar();renderTab();
-    }catch(e){showToast("تعذر حفظ بيانات المركبة","Could not save vehicle details");save.disabled=false;}
-  });
-}
+
+
 
 function wireAdminVehicleEditor(){
-  qsa('[data-admindoc]').forEach(function(inp){on(inp,'change',async function(){
-    var file=inp.files&&inp.files[0]; if(!file)return; var parts=inp.getAttribute('data-admindoc').split('|'), code=parts[0], key=parts[1];
-    var st=qs('[data-admindocstatus="'+code+'|'+key+'"]'); if(st)st.textContent='جارٍ الرفع... / Uploading...';
-    try{var res=await uploadToCloudinary(file); var body={};body[key]=res.secure_url||res.url;body.updatedAt=new Date().toISOString();await state.dbns.collection('vehicles').doc(code).set(body,{merge:true});if(st)st.textContent='✓ تم الرفع / Uploaded';showToast('تم رفع الوثيقة','Document uploaded');}
-    catch(e){if(st)st.textContent='تعذر الرفع / Upload failed';showToast('تعذر رفع الوثيقة','Could not upload document');}
-  });});
-  qsa('[data-savevehdetails]').forEach(function(btn){on(btn,'click',async function(){var c=btn.getAttribute('data-savevehdetails');var val=function(id){var x=qs('#'+id+'-'+c);return x?x.value.trim():'';};var body={plate:val('admPlate'),driverName:val('admDriver'),registrationExpiry:val('admRegExp'),inspectionExpiry:val('admFahsExp'),insuranceExpiry:val('admInsExp'),driverLicenseExpiry:val('admLicExp'),updatedAt:new Date().toISOString()};try{await state.dbns.collection('vehicles').doc(c).set(body,{merge:true});showToast('تم حفظ بيانات المركبة','Vehicle details saved');}catch(e){showToast('تعذر حفظ البيانات','Could not save details');}});});
+  on(qs("#closeVehEditor"),"click",function(){ state.editingVeh=null; renderTab(); });
+  qsa('[data-admindoc]').forEach(function(inp){ on(inp,'change',async function(){
+    var file=inp.files&&inp.files[0]; if(!file) return;
+    var parts=inp.getAttribute('data-admindoc').split('|'), code=parts[0], key=parts[1];
+    var st=qs('[data-admindocstatus="'+code+'|'+key+'"]'); if(st) st.textContent='جارٍ الرفع... / Uploading...';
+    try{
+      var res=await uploadToCloudinary(file); var body={}; body[key]=res.url; body.updatedAt=new Date().toISOString();
+      await state.dbns.collection('vehicles').doc(code).set(body,{merge:true});
+      if(st) st.textContent='✓ تم الرفع / Uploaded'; showToast('تم رفع الوثيقة','Document uploaded');
+    }catch(e){ console.error(e); if(st) st.textContent='تعذر الرفع / Upload failed'; showToast('تعذر رفع الوثيقة','Could not upload document'); }
+  }); });
+  qsa('[data-savevehdetails]').forEach(function(btn){ on(btn,'click',async function(){
+    var c=btn.getAttribute('data-savevehdetails');
+    var val=function(id){ var x=qs('#'+id+'-'+c); return x?String(x.value||'').trim():''; };
+    var plate=val('admPlate');
+    if(plate && state.vehicles.some(function(v){ return v.code!==c && v.plate && v.plate===plate; })){ showToast('رقم اللوحة مستخدم لمركبة أخرى','Plate number is already used by another vehicle'); return; }
+    var body={plate:plate,vehicleType:val('admType'),fuel:val('admFuel'),registrationExpiry:val('admRegExp'),inspectionExpiry:val('admFahsExp'),insuranceExpiry:val('admInsExp'),driverLicenseExpiry:val('admLicExp'),updatedAt:new Date().toISOString()};
+    btn.disabled=true;
+    try{
+      await state.dbns.collection('vehicles').doc(c).set(body,{merge:true});
+      var newUid=val('admDriverUid')||null, cur=state.users.filter(function(u){ return u.role==="driver" && u.vehicleCode===c; })[0];
+      if((cur?cur.id:null)!==newUid) await assignVehicle(newUid,c);
+      showToast('تم حفظ بيانات المركبة','Vehicle details saved');
+      state.editingVeh=null; renderTab(); return;
+    }catch(e){ console.error(e); showToast('تعذر حفظ البيانات','Could not save details'); }
+    btn.disabled=false;
+  }); });
 }
 
+
 function wireDashboard(){
-  qsa("[data-superveh]").forEach(function(b){on(b,"click",function(){openSupervisorVehicle(b.getAttribute("data-superveh"));});});
-  var mvc=qs("#mvCity"), mvcod=qs("#mvCode"); if(mvc&&mvcod){ mvcod.value=nextVehicleCode(mvc.value); on(mvc,"change",function(){mvcod.value=nextVehicleCode(mvc.value);}); }
+  qsa("[data-superveh]").forEach(function(b){ on(b,"click",function(){ openSupervisorVehicle(b.getAttribute("data-superveh")); }); });
+  on(qs("#markNotifRead"),"click",function(){ safeLocalSet(notifSeenKey(),new Date().toISOString()); renderTab(); });
+  var mvc=qs("#mvCity"), mvcod=qs("#mvCode");
+  if(mvc&&mvcod){ mvcod.value=nextVehicleCode(mvc.value); on(mvc,"change",function(){ mvcod.value=nextVehicleCode(mvc.value); }); }
   qsa("[data-newveh]").forEach(function(b){ on(b,"click",function(){
-    vehicleDraft.vehicleCode = b.getAttribute("data-newveh");
-    var v = state.vehicles.filter(function(x){return x.code===vehicleDraft.vehicleCode;})[0];
-    if(v){ vehicleDraft.city=v.city||""; vehicleDraft.vehicleType=v.vehicleType||v.type||""; vehicleDraft.plate=v.plate||""; vehicleDraft.fuel=v.fuel||""; }
+    var code=b.getAttribute("data-newveh");
+    if(vehicleDraft.vehicleCode!==code){ vehicleDraft=freshVehicleDraft(); vehicleDraftRestored=false; }
+    vehicleDraft.vehicleCode=code;
+    var v=state.vehicles.filter(function(x){ return x.code===code; })[0];
+    if(v){ vehicleDraft.city=v.city||""; vehicleDraft.vehicleType=v.vehicleType||v.type||""; vehicleDraft.plate=v.plate||""; vehicleDraft.fuel=v.fuel||""; vehicleDraft.driverName=v.driverName||""; }
     saveVehicleDraft();
     state.tab="vehicle"; location.hash="vehicle"; renderTabbar(); renderTab();
-  });});
+  }); });
   qsa("[data-neweq]").forEach(function(b){ on(b,"click",function(){
-    equipmentDraft.vehicleCode = b.getAttribute("data-neweq");
-    var v = state.vehicles.filter(function(x){return x.code===equipmentDraft.vehicleCode;})[0];
-    if(v){ equipmentDraft.city=v.city||""; equipmentDraft.plate=v.plate||""; }
+    var code=b.getAttribute("data-neweq");
+    if(equipmentDraft.vehicleCode!==code){ equipmentDraft=freshEquipmentDraft(); equipmentDraftRestored=false; }
+    equipmentDraft.vehicleCode=code;
+    var v=state.vehicles.filter(function(x){ return x.code===code; })[0];
+    if(v){ equipmentDraft.city=v.city||""; equipmentDraft.plate=v.plate||""; equipmentDraft.driverTech=v.driverName||""; }
     saveEquipmentDraft();
     state.tab="equipment"; location.hash="equipment"; renderTabbar(); renderTab();
-  });});
-  on(qs("#mvAdd"),"click", async function(){
-    var code = (qs("#mvCode").value||"").trim();
-    if(!code){ showToast("أدخل كود المركبة","Enter a vehicle code"); return; }
-    if(!state.dbns){ showToast("قاعدة البيانات غير متاحة","Database unavailable"); return; }
-    var body = {
-      code: code, city:(qs("#mvCity").value||"").trim(), vehicleType:(qs("#mvType").value||"").trim(),
-      plate:(qs("#mvPlate").value||"").trim(), fuel: qs("#mvFuel").value||"", active:true,
-      createdAt: new Date().toISOString()
-    };
+  }); });
+  on(qs("#mvAdd"),"click",async function(){
+    if(!state.currentProfile||state.currentProfile.role!=="admin") return;
+    var city=mvc.value, plate=(qs("#mvPlate").value||"").trim(), btn=qs("#mvAdd");
+    if(!plate){ showToast("أدخل رقم اللوحة","Enter the plate number"); return; }
+    if(state.vehicles.some(function(v){ return v.plate && v.plate===plate; })){ showToast("رقم اللوحة مسجل مسبقًا","This plate number already exists"); return; }
+    btn.disabled=true;
     try{
-      await state.dbns.collection("vehicles").doc(code).set(body);
-      showToast("تمت إضافة المركبة","Vehicle added");
-    }catch(e){ showToast("تعذرت الإضافة","Could not add vehicle"); }
+      var code=nextVehicleCode(city), ref=state.dbns.collection("vehicles").doc(code), tries=0;
+      while((await ref.get()).exists && tries<20){ state.allVehicleCodes=(state.allVehicleCodes||[]).concat([code]); code=nextVehicleCode(city); ref=state.dbns.collection("vehicles").doc(code); tries++; }
+      if(tries>=20) throw new Error("code-conflict");
+      await ref.set({code:code,city:city,vehicleType:qs("#mvType").value||"",plate:plate,fuel:qs("#mvFuel").value||"",active:true,ownerUid:null,driverName:"",createdAt:new Date().toISOString(),createdBy:state.currentUser.uid});
+      showToast("تمت إضافة المركبة "+code,"Vehicle "+code+" added");
+    }catch(e){ console.error(e); showToast("تعذرت الإضافة","Could not add vehicle"); btn.disabled=false; }
   });
   qsa("[data-editveh]").forEach(function(b){ on(b,"click",function(){
-    var code=b.getAttribute("data-editveh"), v=state.vehicles.filter(function(x){return x.code===code;})[0], host=qs("#adminVehicleEditorHost");
-    if(host&&v){host.innerHTML=adminVehicleDetailsForm(v); host.scrollIntoView({behavior:"smooth",block:"start"}); wireAdminVehicleEditor();}
-  });});
+    var code=b.getAttribute("data-editveh"), v=state.vehicles.filter(function(x){ return x.code===code; })[0], host=qs("#adminVehicleEditorHost");
+    if(host&&v){ state.editingVeh=code; host.innerHTML=adminVehicleDetailsForm(v); host.scrollIntoView({behavior:"smooth",block:"start"}); wireAdminVehicleEditor(); }
+  }); });
   qsa("[data-delveh]").forEach(function(b){ on(b,"click",async function(){
-    if(!state.currentProfile || state.currentProfile.role!=="admin") return;
+    if(!state.currentProfile||state.currentProfile.role!=="admin") return;
     var code=b.getAttribute("data-delveh");
-    if(!confirm("حذف المركبة "+code+" نهائيًا؟ سيتم حذف المركبة وجميع تقاريرها وفك ربطها من الحسابات. / Permanently delete this vehicle and all its reports?")) return;
+    if(!confirm_("حذف المركبة "+code+" من القائمة وفك ربطها بالفني؟ التقارير السابقة تبقى محفوظة ولا يُعاد استخدام الكود.","Remove vehicle "+code+" and unassign its technician? Previous reports are kept and the code is not reused.")) return;
     try{
-      var refs=[];
-      refs.push({ref:state.dbns.collection("vehicles").doc(code),type:"delete"});
-      var us=await state.dbns.collection("users").where("vehicleCode","==",code).get();
-      us.forEach(function(d){ refs.push({ref:d.ref,type:"update"}); });
-      var vr=await state.dbns.collection("vehicle_reports").where("vehicleCode","==",code).get();
-      vr.forEach(function(d){ refs.push({ref:d.ref,type:"delete"}); });
-      var er=await state.dbns.collection("equipment_reports").where("vehicleCode","==",code).get();
-      er.forEach(function(d){ refs.push({ref:d.ref,type:"delete"}); });
-      for(var i=0;i<refs.length;i+=450){
-        var batch=state.dbns.batch();
-        refs.slice(i,i+450).forEach(function(x){ if(x.type==="update") batch.update(x.ref,{vehicleCode:null}); else batch.delete(x.ref); });
-        await batch.commit();
-      }
-      showToast("تم حذف المركبة وجميع تقاريرها وفك ربطها","Vehicle and all related reports deleted");
-    }catch(e){ console.error(e); showToast("تعذر الحذف الكامل للمركبة","Could not fully delete vehicle"); }
-  });});
-  qsa(".hist-row",qs("#main")).forEach(function(row){
-    on(row,"click",function(){ openDetailFromRow(row); });
-  });
+      var batch=state.dbns.batch(), now=new Date().toISOString();
+      batch.set(state.dbns.collection("vehicles").doc(code),{active:false,archivedAt:now,archivedBy:state.currentUser.uid,ownerUid:null,ownerEmail:"",updatedAt:now},{merge:true});
+      state.users.forEach(function(u){ if(u.vehicleCode===code) batch.update(state.dbns.collection("users").doc(u.id),{vehicleCode:null}); });
+      await batch.commit();
+      showToast("تم حذف المركبة من القائمة مع حفظ تقاريرها","Vehicle removed; its reports were kept");
+    }catch(e){ console.error(e); showToast("تعذر حذف المركبة","Could not remove vehicle"); }
+  }); });
+  qsa(".hist-row",qs("#main")).forEach(function(row){ on(row,"click",function(){ openDetailFromRow(row); }); });
 }
+
 
 /* ========================================================================
    VEHICLE FORM
@@ -872,9 +1023,9 @@ function vehicleCodeOptions(selected){
 
 
 function vehicleTypeOptions(selected){
-  var opts=[["","—"],["single_pickup","بيك أب غمارة / Single Cab Pickup"],["double_pickup","بيك أب غمارتين / Double Cab Pickup"],["sedan","سيدان / Sedan"],["suv_4wd","دفع رباعي / SUV / 4WD"]];
-  return opts.map(function(o){return '<option value="'+o[0]+'"'+(selected===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('');
+  return '<option value="">—</option>'+Object.keys(VEH_TYPES).map(function(k){ return '<option value="'+k+'"'+(selected===k?' selected':'')+'>'+esc(vehTypeLabel(k))+'</option>'; }).join('');
 }
+
 
 function vehicleFormHTML(){
   syncDriverVehicleDrafts();
@@ -882,7 +1033,7 @@ function vehicleFormHTML(){
   var isDriver=state.currentProfile&&state.currentProfile.role==="driver";
   var draftNote = vehicleDraftRestored ? '<div class="draft-note">'+bi("تم استرجاع مسودة محفوظة لم تُرسل بعد","A saved unsent draft was restored")+'<button id="clearVDraft">'+bi("مسح","Clear")+'</button></div>' : '';
 
-  var html = draftNote +
+  var html = reviseBanner(d) + draftNote +
   '<div class="section-bar">'+bi("نموذج الفحص والمتابعة الدورية للمركبة","Vehicle Periodic Inspection &amp; Maintenance Form")+'</div>'+
   '<div class="card"><div class="grid grid-3">'+
     (isDriver?field_locked("vCode","كود المركبة","Vehicle Code",d.vehicleCode):field_select("vCode","كود المركبة","Vehicle Code", vehicleCodeOptions(d.vehicleCode))) +
@@ -1003,16 +1154,17 @@ function photoSlotHTML(prefix,p,assetInfo){
 }
 
 function wireSegControls(root, draftGetter){
+  if(!root) return;
   qsa(".seg",root).forEach(function(seg){
     on(seg,"click",function(e){
       var btn = e.target.closest("button[data-val]");
       if(!btn) return;
       qsa("button",seg).forEach(function(b){ b.setAttribute("data-active", b===btn ? "true":"false"); });
-      var group = seg.getAttribute("data-group");
-      draftGetter(group, btn.getAttribute("data-val"));
+      draftGetter(seg.getAttribute("data-group"), btn.getAttribute("data-val"));
     });
   });
 }
+
 
 function wireVehicleForm(){
   syncDriverVehicleDrafts();
@@ -1185,7 +1337,7 @@ async function submitVehicleReport(){
     createdAt: new Date().toISOString(), createdBy: state.myId, approvalStatus:"pending", submittedByName:(state.currentProfile&&state.currentProfile.name)||""
   };
   try{
-    await state.dbns.collection("vehicle_reports").add(payload);
+    await saveReport("vehicle_reports",payload,d._editId);
     showToast("تم إرسال التقرير بنجاح","Report submitted successfully");
     vehicleDraft = freshVehicleDraft(); vehicleDraftRestored=false; safeLocalDel("ps_vehicle_draft_v1");
     state.tab="dashboard"; location.hash="dashboard"; renderTabbar(); renderTab();
@@ -1204,7 +1356,7 @@ function equipmentFormHTML(){
   var isDriver=state.currentProfile&&state.currentProfile.role==="driver";
   var draftNote = equipmentDraftRestored ? '<div class="draft-note">'+bi("تم استرجاع مسودة محفوظة لم تُرسل بعد","A saved unsent draft was restored")+'<button id="clearEDraft">'+bi("مسح","Clear")+'</button></div>' : '';
 
-  var html = draftNote +
+  var html = reviseBanner(d) + draftNote +
   '<div class="section-bar">'+bi("نموذج جرد وفحص معدات مركبة مكافحة الآفات","Pest Control Vehicle Equipment Checklist")+'</div>'+
   '<div class="card"><div class="grid grid-3">'+
     (isDriver?field_locked("eCode","كود المركبة","Vehicle Code",d.vehicleCode):field_select("eCode","كود المركبة","Vehicle Code", vehicleCodeOptions(d.vehicleCode))) +
@@ -1361,7 +1513,7 @@ async function submitEquipmentReport(){
     createdAt: new Date().toISOString(), createdBy: state.myId, approvalStatus:"pending", submittedByName:(state.currentProfile&&state.currentProfile.name)||""
   };
   try{
-    await state.dbns.collection("equipment_reports").add(payload);
+    await saveReport("equipment_reports",payload,d._editId);
     showToast("تم إرسال التقرير بنجاح","Report submitted successfully");
     equipmentDraft = freshEquipmentDraft(); equipmentDraftRestored=false; safeLocalDel("ps_equipment_draft_v1");
     state.tab="dashboard"; location.hash="dashboard"; renderTabbar(); renderTab();
@@ -1388,16 +1540,15 @@ function historyHTML(){
 function historyRowHTML(type,r){
   var icon = type==="vehicle" ? "🚐" : "🧰";
   var title = (r.vehicleCode||"—") + " — " + (type==="vehicle" ? "فحص مركبة / Vehicle Check" : "فحص معدات / Equipment Check");
-  var evalTable = type==="vehicle" ? VEHICLE_EVAL : EQUIP_EVAL;
-  var evalCode = type==="vehicle" ? r.evaluation : r.finalEvaluation;
-  var badge = evalFromCodeBadge(evalCode, evalTable);
-  var dateTxt = fmtDate((r.createdAt||"").slice(0,10));
+  var n=reportIssues(type,r).length;
+  var dateTxt = fmtDate(type==="vehicle"?(r.inspectionDate||(r.createdAt||"").slice(0,10)):(r.date||(r.createdAt||"").slice(0,10)));
   return '<div class="hist-row" data-id="'+esc(r.id)+'" data-type="'+type+'">'+
     '<div class="hist-icon">'+icon+'</div>'+
-    '<div class="hist-main"><div class="t1">'+esc(title)+'</div><div class="t2">'+esc(dateTxt)+'</div></div>'+
-    reportStatusBadge(r)+badge+
+    '<div class="hist-main"><div class="t1">'+esc(title)+'</div><div class="t2">'+esc(dateTxt)+(r.submittedByName?' · '+esc(r.submittedByName):'')+'</div></div>'+
+    (n?'<span class="badge danger">'+n+' '+bi("مشكلة","Issues")+'</span>':'')+reportStatusBadge(r)+
   '</div>';
 }
+
 
 function renderHistList(){
   var vehF = qs("#hfVeh") ? qs("#hfVeh").value : "";
@@ -1430,79 +1581,133 @@ function openDetailFromRow(row){
   openOverlay(type,r);
 }
 
-function openSupervisorVehicle(code){
+function superVehInnerHTML(code){
   var v=state.vehicles.filter(function(x){return x.code===code;})[0]||{};
   var rows=state.vReports.map(function(r){return {type:"vehicle",r:r};}).concat(state.eReports.map(function(r){return {type:"equipment",r:r};})).filter(function(x){return x.r.vehicleCode===code;}).sort(function(a,b){return (b.r.createdAt||"").localeCompare(a.r.createdAt||"");});
-  var div=document.createElement("div");div.className="overlay";div.id="superVehicleOverlay";
-  div.innerHTML='<div class="overlay-panel"><div class="overlay-head"><button class="overlay-close" id="closeSuperVeh">✕</button><div style="font-weight:800">'+bi("سجل المركبة ","Vehicle Record ")+esc(code)+'</div></div><div class="kv">'+kvi("رقم اللوحة","Plate",v.plate)+kvi("السائق","Driver",v.driverName)+kvi("الكود","Code",code)+kvi("المشاكل الحالية","Current Issues",vehicleProblemSummary(code).replace(/<[^>]+>/g,""))+'</div><div class="section-bar">'+bi("التقارير","Reports")+'</div><div id="superVehReports">'+(rows.length?rows.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير","No reports")+'</div>')+'</div></div>';
-  document.body.appendChild(div);on(qs("#closeSuperVeh",div),"click",function(){div.remove();});
-  qsa(".hist-row",div).forEach(function(row){on(row,"click",function(){var id=row.getAttribute("data-id"),type=row.getAttribute("data-type"),list=type==="vehicle"?state.vReports:state.eReports,r=list.filter(function(x){return x.id===id;})[0];if(r)openOverlay(type,r);});});
+  return '<div class="overlay-panel"><div class="overlay-head"><button class="overlay-close" data-closesuper="1">✕</button><div style="font-weight:800">'+bi("سجل المركبة "+code,"Vehicle Record")+'</div></div>'+
+    '<div class="kv">'+kvi("الكود","Code",code)+kvi("رقم اللوحة","Plate",v.plate)+kvi("السائق","Driver",v.driverName)+kvi("المدينة","City",cityLabel(v.city))+'</div>'+
+    '<p><b>'+bi("المشكلات الحالية","Current Issues")+'</b> '+vehicleProblemSummary(code)+'</p>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+expiryBadge(v.registrationExpiry,"استمارة","")+expiryBadge(v.inspectionExpiry,"فحص","")+expiryBadge(v.insuranceExpiry,"تأمين","")+expiryBadge(v.driverLicenseExpiry,"رخصة","")+'</div>'+
+    '<div class="section-bar">'+bi("التقارير (الأحدث أولًا)","Reports (newest first)")+'</div><div>'+(rows.length?rows.map(function(x){return historyRowHTML(x.type,x.r);}).join(""):'<div class="empty-state">'+bi("لا توجد تقارير","No reports")+'</div>')+'</div></div>';
 }
-async function notifyAfterApproval(r,type){
-  if(!state.dbns)return; var now=new Date().toISOString(),code=r.vehicleCode||"";
-  var base={createdAt:now,read:false,vehicleCode:code,reportId:r.id,reportType:type};
-  try{
-    await state.dbns.collection("notifications").add(Object.assign({},base,{recipientRole:"admin",titleAr:"تم اعتماد تقرير",titleEn:"Report Approved",messageAr:"تم اعتماد تقرير المركبة "+code+" بواسطة المشرف.",messageEn:"Vehicle "+code+" report was approved by the supervisor."}));
-    if(r.createdBy) await state.dbns.collection("notifications").add(Object.assign({},base,{recipientUid:r.createdBy,titleAr:"تم اعتماد تقريرك",titleEn:"Your Report Was Approved",messageAr:"تم اعتماد تقرير المركبة "+code+" وأصبح مقفلاً للتعديل.",messageEn:"Your report for vehicle "+code+" was approved and is now locked."}));
-  }catch(e){console.error(e);}
+function openSupervisorVehicle(code){
+  var old=qs("#superVehicleOverlay"); if(old) old.remove();
+  var div=document.createElement("div"); div.className="overlay"; div.id="superVehicleOverlay"; div.setAttribute("data-code",code);
+  div.innerHTML=superVehInnerHTML(code);
+  document.body.appendChild(div);
+  on(div,"click",function(e){
+    if(e.target===div || e.target.closest("[data-closesuper]")){ div.remove(); return; }
+    var row=e.target.closest(".hist-row"); if(row) openDetailFromRow(row);
+  });
 }
+function refreshSuperOverlay(){ var s=qs("#superVehicleOverlay"); if(s) s.innerHTML=superVehInnerHTML(s.getAttribute("data-code")); }
+
+
 async function supervisorDecision(type,r,decision,div){
-  if(!state.currentProfile||state.currentProfile.role!=="supervisor")return;
-  var col=type==="vehicle"?"vehicle_reports":"equipment_reports", now=new Date().toISOString();
-  var notes=(qs("#supReviewNotes",div)||{}).value||"", action=(qs("#supRequiredAction",div)||{}).value||"", follow=(qs("#supFollowDate",div)||{}).value||"";
-  var body={supervisorNotes:notes,supervisorRequiredAction:action,supervisorFollowupDate:follow,reviewedBy:state.currentUser.uid,reviewedByName:(state.currentProfile.name||state.currentUser.email||""),reviewedAt:now,approvalStatus:decision};
-  try{await state.dbns.collection(col).doc(r.id).set(body,{merge:true});if(decision==="approved"){await notifyAfterApproval(r,type);showToast("تم اعتماد التقرير وإقفاله على الفني","Report approved and locked for technician");}else{try{if(r.createdBy)await state.dbns.collection("notifications").add({recipientUid:r.createdBy,createdAt:now,read:false,vehicleCode:r.vehicleCode||"",reportId:r.id,reportType:type,titleAr:"التقرير معاد للتعديل",titleEn:"Report Returned for Revision",messageAr:"أعاد المشرف التقرير للتعديل: "+(notes||"يرجى مراجعة التقرير"),messageEn:"Supervisor returned the report for revision."});}catch(e){}showToast("تمت إعادة التقرير للفني","Report returned to technician");}div.remove();}catch(e){console.error(e);showToast("تعذر تحديث حالة التقرير. تحقق من صلاحيات Firestore","Could not update report. Check Firestore permissions");}
+  if(!state.currentProfile||state.currentProfile.role!=="supervisor") return;
+  var col=type==="vehicle"?"vehicle_reports":"equipment_reports", now=new Date().toISOString(), uid=state.currentUser.uid, name=myName();
+  var notes=((qs("#supReviewNotes",div)||{}).value||"").trim(), action=((qs("#supRequiredAction",div)||{}).value||"").trim(), follow=(qs("#supFollowDate",div)||{}).value||"", ev=(qs("#supEval",div)||{}).value||"";
+  if(decision==="returned"&&!notes){ showToast("اكتب سبب الإعادة في خانة ملاحظات المشرف","Write the return reason in the supervisor notes"); return; }
+  var prev=r.approvalStatus||"legacy", next=decision==="edit"?prev:decision;
+  var body={supervisorNotes:notes,supervisorRequiredAction:action,supervisorFollowupDate:follow,supervisorEvaluation:ev,approvalStatus:next,
+    history:firebase.firestore.FieldValue.arrayUnion({action:decision==="edit"?"review_edited":decision,by:uid,byName:name,at:now,from:prev,to:next,note:notes})};
+  if(decision==="edit"){ body.reviewEditedAt=now; body.reviewEditedByName=name; }
+  else { body.reviewedBy=uid; body.reviewedByName=name; body.reviewedAt=now; }
+  if(decision==="returned") body.returnReason=notes;
+  qsa("button",div).forEach(function(b){ b.disabled=true; });
+  try{
+    await state.dbns.collection(col).doc(r.id).update(body);
+    var code=r.vehicleCode||"", base={vehicleCode:code,reportId:r.id,reportType:type};
+    if(decision==="approved"){
+      pushNotif(Object.assign({},base,{recipientRole:"admin",titleAr:"تم اعتماد تقرير المركبة",titleEn:"Vehicle Report Approved",messageAr:"تم اعتماد تقرير المركبة "+code+" بواسطة المشرف "+name+".",messageEn:"Report for "+code+" was approved by "+name+"."}));
+      if(r.createdBy) pushNotif(Object.assign({},base,{recipientUid:r.createdBy,titleAr:"تم اعتماد تقريرك بواسطة المشرف",titleEn:"Your Report Was Approved",messageAr:"تم اعتماد تقرير المركبة "+code+" وأصبح مقفلًا أمام التعديل.",messageEn:"Your report for "+code+" was approved and is now locked."}));
+      showToast("تم اعتماد التقرير وإقفاله أمام الفني","Report approved and locked for the technician");
+    } else if(decision==="returned"){
+      if(r.createdBy) pushNotif(Object.assign({},base,{recipientUid:r.createdBy,titleAr:"تقرير معاد للتعديل",titleEn:"Report Returned for Revision",messageAr:"أعاد المشرف تقرير المركبة "+code+". السبب: "+notes,messageEn:"The supervisor returned your report for "+code+"."}));
+      showToast("تمت إعادة التقرير للفني","Report returned to the technician");
+    } else showToast("تم حفظ تعديل المراجعة","Review changes saved");
+    div.remove();
+  }catch(e){
+    console.error(e); qsa("button",div).forEach(function(b){ b.disabled=false; });
+    showToast("تعذر تحديث التقرير. تحقق من الصلاحيات","Could not update the report. Check permissions");
+  }
 }
+
 
 /* ========================================================================
    DETAIL OVERLAY
    ======================================================================== */
-async function openOverlay(type, r){
-  var submitter = r.supervisorName || "—";
-  var html = buildDetailHTML(type, r, submitter);
+function openOverlay(type, r){
+  var old=qs("#detailOverlay"); if(old) old.remove();
+  var p=state.currentProfile||{}, role=p.role, uid=state.currentUser&&state.currentUser.uid;
+  var submitter=r.submittedByName||"—", st=r.approvalStatus||"legacy", panel='';
+  if(role==="supervisor"){
+    var evalTable=type==="vehicle"?VEHICLE_EVAL:EQUIP_EVAL;
+    var evOpts='<option value="">—</option>'+evalTable.map(function(e){ return '<option value="'+e[0]+'"'+(r.supervisorEvaluation===e[0]?' selected':'')+'>'+esc(e[1]+" / "+e[2])+'</option>'; }).join("");
+    var btns= st==="approved" ? '<button class="btn btn-primary btn-sm" id="supSaveEdit">'+bi("حفظ تعديل المراجعة (يُسجَّل في السجل)","Save Review Changes (logged)")+'</button>'
+      : st==="returned" ? '<span class="badge danger">'+bi("بانتظار تعديل الفني","Waiting for technician revision")+'</span>'
+      : '<button class="btn btn-primary" id="supApprove">'+bi("اعتماد التقرير","Approve Report")+'</button><button class="btn btn-outline" id="supReturn">'+bi("إعادة للفني للتعديل","Return for Revision")+'</button>';
+    panel='<div class="section-bar" style="margin-top:14px">'+bi("مراجعة المشرف","Supervisor Review")+'</div><div class="card"><div class="grid grid-2">'+
+      '<div class="field"><label class="bi">'+bi("التقييم النهائي","Final Evaluation")+'</label><select id="supEval">'+evOpts+'</select></div>'+
+      '<div class="field"><label class="bi">'+bi("تاريخ المتابعة القادمة","Next Follow-up Date")+'</label><input type="date" id="supFollowDate" value="'+esc(r.supervisorFollowupDate||"")+'"></div>'+
+      '<div class="field"><label class="bi">'+bi("ملاحظات المشرف / سبب الإعادة","Supervisor Notes / Return Reason")+'</label><textarea id="supReviewNotes">'+esc(r.supervisorNotes||"")+'</textarea></div>'+
+      '<div class="field"><label class="bi">'+bi("الإجراءات المطلوبة","Required Actions")+'</label><textarea id="supRequiredAction">'+esc(r.supervisorRequiredAction||"")+'</textarea></div>'+
+      '</div><div class="btn-row" style="margin-top:12px">'+btns+'</div></div>';
+  } else if(role==="admin"){
+    panel='<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="admEdit">'+bi("تعديل التقرير","Edit Report")+'</button><button class="btn" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger)" id="admDelete">'+bi("حذف التقرير","Delete Report")+'</button></div>';
+  } else if(role==="driver" && st==="returned" && r.createdBy===uid){
+    panel='<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="drvRevise">'+bi("تعديل التقرير وإعادة إرساله","Revise & Resubmit Report")+'</button></div>';
+  }
   var div = document.createElement("div");
-  div.className = "overlay";
-  div.id = "detailOverlay";
+  div.className = "overlay"; div.id = "detailOverlay";
   div.innerHTML = '<div class="overlay-panel">'+
     '<div class="overlay-head"><button class="overlay-close" id="closeOverlay">✕</button>'+
-      '<div style="font-weight:800">'+bi(type==="vehicle"?"تقرير مركبة":"تقرير معدات", type==="vehicle"?"Vehicle Report":"Equipment Report")+'</div>'+
-    '</div>'+html+
-    ((state.currentProfile&&state.currentProfile.role==="supervisor") ? '<div class="section-bar" style="margin-top:14px">'+bi("مراجعة المشرف","Supervisor Review")+'</div><div class="card"><div class="grid grid-2"><div class="field"><label>'+bi("ملاحظات المشرف","Supervisor Notes")+'</label><textarea id="supReviewNotes">'+esc(r.supervisorNotes||"")+'</textarea></div><div class="field"><label>'+bi("الإجراء المطلوب","Required Action")+'</label><textarea id="supRequiredAction">'+esc(r.supervisorRequiredAction||"")+'</textarea></div><div class="field"><label>'+bi("تاريخ المتابعة القادمة","Next Follow-up")+'</label><input type="date" id="supFollowDate" value="'+esc(r.supervisorFollowupDate||"")+'"></div></div><div class="btn-row"><button class="btn btn-primary btn-sm" id="supApprove">'+bi("اعتماد التقرير","Approve Report")+'</button><button class="btn btn-outline btn-sm" id="supReturn">'+bi("إرجاع للفني للتعديل","Return for Revision")+'</button></div></div>' : '')+
+      '<div style="font-weight:800">'+bi((type==="vehicle"?"تقرير مركبة":"تقرير معدات")+" — "+(r.vehicleCode||""), type==="vehicle"?"Vehicle Report":"Equipment Report")+'</div></div>'+
+    buildDetailHTML(type, r, submitter)+panel+
     '<div class="btn-row" style="margin-top:14px">'+
       '<button class="btn btn-leaf btn-sm" id="exportPdfBtn">'+bi("تنزيل PDF","Download PDF")+'</button>'+
       '<button class="btn btn-outline btn-sm" id="exportCsvBtn">'+bi("تنزيل Excel (CSV)","Download Excel (CSV)")+'</button>'+
-    '</div>'+
-  '</div>';
+    '</div></div>';
   document.body.appendChild(div);
   on(qs("#closeOverlay",div),"click",function(){ div.remove(); });
   on(div,"click",function(e){ if(e.target===div) div.remove(); });
+  qsa(".thumb-row img",div).forEach(function(img){ img.style.cursor="zoom-in"; on(img,"click",function(){ window.open(img.src,"_blank","noopener"); }); });
   on(qs("#exportPdfBtn",div),"click",function(){ exportReportPDF(type,r,submitter); });
   on(qs("#exportCsvBtn",div),"click",function(){ exportReportCSV(type,r,submitter); });
-  on(qs("#supApprove",div),"click",function(){supervisorDecision(type,r,"approved",div);});
-  on(qs("#supReturn",div),"click",function(){supervisorDecision(type,r,"returned",div);});
+  on(qs("#supApprove",div),"click",function(){ supervisorDecision(type,r,"approved",div); });
+  on(qs("#supReturn",div),"click",function(){ supervisorDecision(type,r,"returned",div); });
+  on(qs("#supSaveEdit",div),"click",function(){ supervisorDecision(type,r,"edit",div); });
+  on(qs("#admEdit",div),"click",function(){ div.remove(); var s=qs("#superVehicleOverlay"); if(s) s.remove(); reviseReport(type,r); });
+  on(qs("#admDelete",div),"click",async function(){
+    if(!confirm_("حذف هذا التقرير نهائيًا؟ لا يمكن التراجع.","Permanently delete this report? This cannot be undone.")) return;
+    try{ await state.dbns.collection(type==="vehicle"?"vehicle_reports":"equipment_reports").doc(r.id).delete(); div.remove(); showToast("تم حذف التقرير","Report deleted"); }
+    catch(e){ console.error(e); showToast("تعذر حذف التقرير","Could not delete the report"); }
+  });
+  on(qs("#drvRevise",div),"click",function(){ div.remove(); var s=qs("#superVehicleOverlay"); if(s) s.remove(); reviseReport(type,r); });
 }
+
 
 function kvi(ar,en,val){
   return '<div class="kvi"><div class="k">'+bi(ar,en)+'</div><div class="v">'+esc(val||"—")+'</div></div>';
 }
 
-function buildDetailHTML(type, r, submitter){
+function buildDetailBody(type, r, submitter){
   var out = '<div class="kv">'+
     kvi("كود المركبة","Vehicle Code", r.vehicleCode)+
     kvi("التاريخ","Date", fmtDate((type==="vehicle"?r.inspectionDate:r.date)))+
-    kvi("المشرف","Supervisor", r.supervisorName)+
+    kvi("المراجع","Reviewed By", r.reviewedByName||r.supervisorName)+
     kvi("أُرسل بواسطة","Submitted By", submitter)+
   '</div>';
 
   if(type==="vehicle"){
     out += '<div class="kv">'+
-      kvi("المدينة","City", r.city)+kvi("نوع المركبة","Type", r.vehicleType)+
+      kvi("المدينة","City", r.city)+kvi("نوع المركبة","Type", vehTypeLabel(r.vehicleType))+
       kvi("رقم اللوحة","Plate", r.plate)+kvi("العداد","Odometer", r.odometer)+
     '</div>';
     out += '<table class="rep-table"><thead><tr><th>'+("البند / Item")+'</th><th>'+("الحالة / Status")+'</th><th>'+("ملاحظات / Notes")+'</th></tr></thead><tbody>'+
       VEHICLE_CHECK_ITEMS.map(function(it){
         var c = (r.checklist||{})[it[0]]||{};
-        var tone = TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
+        var tone = statusRow(c.status);
         return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+(tone?'<span class="badge '+tone[3]+'">'+esc(tone[1])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>';
       }).join("")+
     '</tbody></table>';
@@ -1514,21 +1719,21 @@ function buildDetailHTML(type, r, submitter){
     }
     out += '<div class="kv" style="margin-top:12px">'+kvi("انتهاء الاستمارة","Registration Exp.",fmtDate(r.estemaraExpiry))+kvi("انتهاء التأمين","Insurance Exp.",fmtDate(r.insuranceExpiry))+kvi("انتهاء الفحص","Inspection Exp.",fmtDate(r.fahsExpiry))+'</div>';
     var ev = VEHICLE_EVAL.filter(function(e){return e[0]===r.evaluation;})[0];
-    out += '<p>'+bi("التقييم العام","Overall Evaluation")+' '+(ev?'<span class="badge '+ev[3]+'">'+esc(ev[1])+'</span>':"—")+'</p>';
+    if(ev) out += '<p>'+bi("التقييم العام","Overall Evaluation")+' '+(ev?'<span class="badge '+ev[3]+'">'+esc(ev[1])+'</span>':"—")+'</p>';
     if(r.faults) out += '<p><b>'+bi("الأعطال / الملاحظات","Faults / Remarks")+'</b><br>'+esc(r.faults)+'</p>';
     if(r.requiredAction) out += '<p><b>'+bi("الإجراء المطلوب","Required Action")+'</b><br>'+esc(r.requiredAction)+'</p>';
   } else {
     out += '<table class="rep-table"><thead><tr><th>المعدة / Equipment</th><th>العدد / Quantity</th><th>الحالة / Status</th><th>ملاحظات / Notes</th></tr></thead><tbody>'+
       EQUIPMENT_ITEMS.map(function(it){ var c=(r.items||{})[it[0]]||{}; var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+esc(c.qty||"0")+'</td><td>'+(st?'<span class="badge '+st[3]+'">'+esc(st[1])+' / '+esc(st[2])+'</span>':"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>'; }).join("")+
       (r.extraItems||[]).map(function(c){ var st=EQUIP_STATUS.filter(function(t){return t[0]===c.status;})[0]; return '<tr><td>'+esc(c.name||"—")+'</td><td>'+esc(c.qty||"0")+'</td><td>'+(st?esc(st[1])+' / '+esc(st[2]):"—")+'</td><td>'+esc(c.notes||"")+'</td></tr>'; }).join("")+'</tbody></table>';
-    out += '<div class="section-bar" style="margin-top:12px">'+bi("حالة ترتيب وتجهيز السيارة","Vehicle Readiness")+'</div>';
-    out += '<table class="rep-table"><tbody>'+READINESS_ITEMS.map(function(it){
+    var hasRdy=READINESS_ITEMS.some(function(it){ return (r.readiness||{})[it[0]]; }); if(hasRdy) out += '<div class="section-bar" style="margin-top:12px">'+bi("حالة ترتيب وتجهيز السيارة","Vehicle Readiness")+'</div>';
+    if(hasRdy) out += '<table class="rep-table"><tbody>'+READINESS_ITEMS.map(function(it){
       var v = (r.readiness||{})[it[0]];
       var rt = READY3.filter(function(t){return t[0]===v;})[0];
       return '<tr><td>'+esc(it[1])+' / '+esc(it[2])+'</td><td>'+(rt?'<span class="badge '+rt[3]+'">'+esc(rt[1])+'</span>':"—")+'</td></tr>';
     }).join("")+'</tbody></table>';
     var ev = EQUIP_EVAL.filter(function(e){return e[0]===r.finalEvaluation;})[0];
-    out += '<p style="margin-top:10px">'+bi("التقييم النهائي","Final Evaluation")+' '+(ev?'<span class="badge '+ev[3]+'">'+esc(ev[1])+'</span>':"—")+'</p>';
+    if(ev) out += '<p style="margin-top:10px">'+bi("التقييم النهائي","Final Evaluation")+' '+(ev?'<span class="badge '+ev[3]+'">'+esc(ev[1])+'</span>':"—")+'</p>';
     if(r.missingNotes) out += '<p><b>'+bi("المعدات الناقصة","Missing Equipment")+'</b><br>'+esc(r.missingNotes)+'</p>';
     if(r.maintenanceNotes) out += '<p><b>'+bi("المعدات التي تحتاج صيانة","Needs Maintenance")+'</b><br>'+esc(r.maintenanceNotes)+'</p>';
     if(r.requiredAction) out += '<p><b>'+bi("الإجراء المطلوب","Required Action")+'</b><br>'+esc(r.requiredAction)+'</p>';
@@ -1574,7 +1779,7 @@ function exportReportCSV(type, r, submitter){
     rows.push(["البند / Item","الحالة / Status","ملاحظات / Notes"]);
     VEHICLE_CHECK_ITEMS.forEach(function(it){
       var c=(r.checklist||{})[it[0]]||{};
-      var tone = TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
+      var tone = statusRow(c.status);
       rows.push([it[1]+" / "+it[2], tone?tone[1]+" / "+tone[2]:"", c.notes||""]);
     });
     rows.push([]);
@@ -1642,8 +1847,8 @@ function buildPrintSheet(type, r, submitter){
   if(type==="vehicle"){
     body += sectionBar("بيانات المركبة والفحص","Vehicle & Inspection Data");
     body += kvTable([
-      ["المدينة / City", r.city],["نوع المركبة / Type", r.vehicleType],["رقم اللوحة / Plate", r.plate],["الوقود / Fuel", r.fuel],
-      ["السائق / Driver", r.driverName],["العداد / Odometer", r.odometer],["المشرف / Supervisor", r.supervisorName],["أُرسل بواسطة / By", submitter]
+      ["المدينة / City", r.city],["نوع المركبة / Type", vehTypeLabel(r.vehicleType)],["رقم اللوحة / Plate", r.plate],["الوقود / Fuel", r.fuel],
+      ["السائق / Driver", r.driverName],["العداد / Odometer", r.odometer],["المراجع / Reviewed By", r.reviewedByName||r.supervisorName],["أُرسل بواسطة / By", submitter]
     ]);
     var pv=previousVehicleReport(r), os=oilSummary(r,pv); body += sectionBar("حركة المركبة والزيت","Vehicle Mileage & Oil"); body += kvTable([["المسافة منذ التقرير السابق / Distance Since Previous Report", os.moved===null?"—":os.moved+" km"],["المسافة منذ تغيير الزيت / KM Since Oil Change", os.since===null?"—":os.since+" km"],["المتبقي حتى 3000 كم / Remaining to 3,000 KM", os.remaining===null?"—":(os.remaining>=0?os.remaining+" km":"تجاوز بـ "+Math.abs(os.remaining)+" km / Overdue by "+Math.abs(os.remaining)+" km")],["فلتر الهواء / Air Filter",fmtDate(r.airFilterDate)],["فلتر الزيت / Oil Filter",fmtDate(r.oilFilterDate)]]); if(os.remaining!==null && os.remaining<=500) body += '<div style="margin-top:7px;padding:7px;background:#FBE8E5;color:#C1402E;font-weight:800;border-radius:6px">تنبيه زيت المحرك / ENGINE OIL ALERT: '+(os.remaining<0?'متجاوز / OVERDUE '+Math.abs(os.remaining)+' km':'متبقي / REMAINING '+os.remaining+' km')+'</div>';
     body += sectionBar("جدول الفحص الفني","Technical Inspection");
@@ -1654,7 +1859,7 @@ function buildPrintSheet(type, r, submitter){
       '<th style="border:1px solid #D7E2D2;background:#EAF0E7;padding:5px;text-align:start">ملاحظات</th></tr></thead><tbody>';
     VEHICLE_CHECK_ITEMS.forEach(function(it,i){
       var c=(r.checklist||{})[it[0]]||{};
-      var tone=TRI_CHECK.filter(function(t){return t[0]===c.status;})[0];
+      var tone=statusRow(c.status);
       var prev=previousVehicleReport(r), pc=prev&&prev.checklist?(prev.checklist[it[0]]||{}):{}; var changed=!!(pc.status && c.status && pc.status!==c.status);
       var col = changed ? "#C1402E" : (tone? (tone[0]==="sound"?"#2E8B57":tone[0]==="followup"?"#B07A1C":"#C1402E") : "#999");
       var changeNote=changed ? ('<div style="color:#C1402E;font-weight:800">تغيرت الحالة / Status changed: '+esc(pc.status)+' → '+esc(c.status)+'</div>') : '';
@@ -1677,7 +1882,7 @@ function buildPrintSheet(type, r, submitter){
     body += sectionBar("بيانات المركبة والفريق","Vehicle & Team Data");
     body += kvTable([
       ["المدينة / City", r.city],["رقم اللوحة / Plate", r.plate],["السائق/الفني", r.driverTech],
-      ["المشرف / Supervisor", r.supervisorName],["العداد / Odometer", r.odometer],["أُرسل بواسطة / By", submitter]
+      ["المراجع / Reviewed By", r.reviewedByName||r.supervisorName],["العداد / Odometer", r.odometer],["أُرسل بواسطة / By", submitter]
     ]);
     body += sectionBar("جرد وفحص المعدات","Equipment Inventory");
     var tr2 = '<table style="width:100%;border-collapse:collapse;font-size:9.5px;margin-top:6px"><thead><tr>'+
@@ -1709,6 +1914,11 @@ function buildPrintSheet(type, r, submitter){
     if(r.maintenanceNotes) body += '<p style="font-size:10.5px"><b>تحتاج صيانة:</b> '+esc(r.maintenanceNotes)+'</p>';
     if(r.requiredAction) body += '<p style="font-size:10.5px"><b>الإجراء المطلوب:</b> '+esc(r.requiredAction)+'</p>';
   }
+  var stMap={pending:"بانتظار الاعتماد / Pending Review",returned:"معاد للتعديل / Returned",approved:"معتمد / Approved"};
+  body += sectionBar("اعتماد المشرف","Supervisor Approval");
+  body += kvTable([["حالة الاعتماد / Status", stMap[r.approvalStatus]||"سابق / Legacy"],["المشرف / Supervisor", r.reviewedByName],["وقت المراجعة / Reviewed At", r.reviewedAt?fmtDateTime(r.reviewedAt):""],["المتابعة القادمة / Next Follow-up", r.supervisorFollowupDate?fmtDate(r.supervisorFollowupDate):""]]);
+  if(r.supervisorNotes) body += '<p style="font-size:10.5px;margin-top:8px"><b>ملاحظات المشرف / Supervisor Notes:</b> '+esc(r.supervisorNotes)+'</p>';
+  if(r.supervisorRequiredAction) body += '<p style="font-size:10.5px"><b>الإجراء المطلوب / Required Action:</b> '+esc(r.supervisorRequiredAction)+'</p>';
   body += '<div style="margin-top:16px;font-size:9px;color:#8a978e;border-top:1px solid #D7E2D2;padding-top:6px">مؤسسة خطوة محترف — نظام داخلي / Professional Step — Internal System</div>';
   wrap.innerHTML = body;
   document.body.appendChild(wrap);
@@ -1775,122 +1985,133 @@ function showLogin(){
   });
 }
 function usersHTML(){
-  if(!state.currentProfile||state.currentProfile.role!=="admin") return '<div class="empty-state">غير مصرح</div>';
+  if(!state.currentProfile||state.currentProfile.role!=="admin") return '<div class="empty-state">'+bi("غير مصرح","Not authorized")+'</div>';
+  var vehOpts=function(sel){ return '<option value="">— بدون مركبة / No vehicle —</option>'+state.vehicles.map(function(v){ return '<option value="'+esc(v.code)+'"'+(sel===v.code?' selected':'')+'>'+esc(v.code+(v.plate?" · "+v.plate:"")+(v.driverName&&sel!==v.code?" ("+v.driverName+")":""))+'</option>'; }).join(''); };
   var rows=state.users.map(function(u){
-    var opts='<option value="">— بدون مركبة / No vehicle —</option>'+state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'" '+(u.vehicleCode===v.code?'selected':'')+'>'+esc(v.code)+'</option>';}).join('');
-    return '<div class="user-row" style="align-items:flex-end"><div style="flex:1"><b>'+esc(u.name||u.email||u.id)+'</b><div class="meta">'+esc(u.email||'')+' • '+esc(u.role||'')+' • '+esc(u.city||'all')+'</div></div><div class="field" style="min-width:180px"><label class="bi">مركبة الفني / Assigned Vehicle</label><select data-userveh="'+esc(u.id)+'">'+opts+'</select></div><button class="btn btn-outline btn-sm" data-saveuserveh="'+esc(u.id)+'">حفظ الربط</button><span class="badge '+(u.active===false?'danger':'ok')+'">'+(u.active===false?'معطل':'نشط')+'</span></div>';
+    var rl=ROLE_LABELS[u.role]||[u.role||"",""], off=u.active===false;
+    return '<div class="user-row" style="align-items:flex-end;flex-wrap:wrap"><div style="flex:1;min-width:170px"><b>'+esc(u.name||u.email||u.id)+'</b><div class="meta">'+esc(u.email||'')+' • '+esc(rl[0]+" / "+rl[1])+' • '+esc(cityLabel(u.city||"all"))+'</div></div>'+
+      (u.role==="driver"?'<div class="field" style="min-width:190px"><label class="bi">'+bi("مركبة الفني","Assigned Vehicle")+'</label><select data-userveh="'+esc(u.id)+'">'+vehOpts(u.vehicleCode||"")+'</select></div><button class="btn btn-outline btn-sm" data-saveuserveh="'+esc(u.id)+'">'+bi("حفظ التعيين","Save Assignment")+'</button>':'')+
+      '<span class="badge '+(off?'danger':'ok')+'">'+bi(off?"معطل":"نشط",off?"Disabled":"Active")+'</span>'+
+      (u.id!==state.currentUser.uid?'<button class="btn btn-ghost btn-sm" data-toggleuser="'+esc(u.id)+'">'+bi(off?"تفعيل":"تعطيل",off?"Enable":"Disable")+'</button>':'')+'</div>';
   }).join('');
   var ver=(state.appUpdate&&state.appUpdate.version)||'—';
-  return '<div class="card"><div class="section-bar">إدارة المستخدمين <span class="en">User Management</span></div>'+ 
-   '<div class="grid grid-2"><div class="field"><label class="bi">الاسم</label><input id="uName" type="text"></div><div class="field"><label class="bi">البريد</label><input id="uEmail" type="email"></div>'+ 
-   '<div class="field"><label class="bi">كلمة المرور المؤقتة</label><input id="uPass" type="password" minlength="6"></div><div class="field"><label class="bi">الصلاحية</label><select id="uRole"><option value="driver">فني / سائق</option><option value="supervisor">مشرف</option><option value="admin">مدير النظام</option></select></div>'+ 
-   '<div class="field"><label class="bi">المدينة</label><select id="uCity"><option value="Jeddah">جدة</option><option value="Riyadh">الرياض</option><option value="Makkah">مكة</option><option value="all">جميع المدن</option></select></div><div class="field"><label class="bi">المركبة (اختياري)</label><select id="uVehicle"><option value="">—</option>'+state.vehicles.map(function(v){return '<option value="'+esc(v.code)+'">'+esc(v.code)+'</option>';}).join('')+'</select></div></div>'+ 
-   '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="createUserBtn">إنشاء الحساب</button></div><div id="uMsg" class="hint"></div></div>'+ 
-   '<div class="card"><div class="section-bar leaf">إشعار تحديث النظام <span class="en">App Update Notice</span></div><div class="hint" style="margin-bottom:10px">الإصدار المنشور حاليًا: '+esc(ver)+' — بعد رفع الملف الجديد إلى GitHub اضغط «نشر تحديث». سيظهر للفني زر تحديث جديد، ويفتح نفس الرابط بأحدث نسخة.</div><div class="btn-row"><button class="btn btn-primary" id="publishUpdateBtn">نشر تحديث جديد / Publish Update</button><button class="btn btn-outline" id="cleanupOrphanReportsBtn">تنظيف تقارير المركبات المحذوفة / Clean Deleted Vehicle Reports</button></div></div>'+ 
-   '<div class="card"><h3>الحسابات الحالية</h3><div class="users-list">'+(rows||'<div class="empty-state">لا توجد حسابات</div>')+'</div></div>';
+  return '<div class="card"><div class="section-bar">'+bi("إدارة المستخدمين","User Management")+'</div>'+
+   '<div class="grid grid-2"><div class="field"><label class="bi">'+bi("الاسم","Name")+'</label><input id="uName" type="text"></div><div class="field"><label class="bi">'+bi("البريد الإلكتروني","Email")+'</label><input id="uEmail" type="email"></div>'+
+   '<div class="field"><label class="bi">'+bi("كلمة المرور المؤقتة","Temporary Password")+'</label><input id="uPass" type="password" minlength="6"></div><div class="field"><label class="bi">'+bi("الصلاحية","Role")+'</label><select id="uRole"><option value="driver">فني / سائق — Technician</option><option value="supervisor">مشرف — Supervisor</option><option value="admin">مدير — Admin</option></select></div>'+
+   '<div class="field"><label class="bi">'+bi("المدينة","City")+'</label><select id="uCity"><option value="Jeddah">جدة / Jeddah</option><option value="Riyadh">الرياض / Riyadh</option><option value="Makkah">مكة / Makkah</option><option value="all">جميع المدن / All</option></select></div><div class="field"><label class="bi">'+bi("المركبة (للفني فقط، اختياري)","Vehicle (technician only, optional)")+'</label><select id="uVehicle">'+vehOpts("")+'</select></div></div>'+
+   '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" id="createUserBtn">'+bi("إنشاء الحساب","Create Account")+'</button></div><div id="uMsg" class="hint"></div></div>'+
+   '<div class="card"><div class="section-bar leaf">'+bi("إشعار تحديث النظام","App Update Notice")+'</div><div class="hint" style="margin-bottom:10px">'+bi("إصدار هذا الملف: "+APP_VERSION+" — الإصدار المعلن للمستخدمين: "+ver+". بعد رفع الملف الجديد إلى GitHub اضغط «نشر التحديث» ليظهر زر التحديث لمن يعمل على نسخة أقدم.","This file: "+APP_VERSION+" — announced: "+ver+". After uploading the new file to GitHub, press Publish so users on older versions see the update button.")+'</div><div class="btn-row"><button class="btn btn-primary" id="publishUpdateBtn">'+bi("نشر التحديث "+APP_VERSION,"Publish Update "+APP_VERSION)+'</button></div></div>'+
+   '<div class="card"><div class="section-bar">'+bi("الحسابات الحالية","Current Accounts")+'</div><div class="users-list">'+(rows||'<div class="empty-state">'+bi("لا توجد حسابات","No accounts")+'</div>')+'</div></div>';
 }
+
 function wireUsers(){
-  var b=qs("#createUserBtn");
-  if(b) on(b,"click",async function(){
-    var name=qs("#uName").value.trim(), email=qs("#uEmail").value.trim(), pass=qs("#uPass").value, role=qs("#uRole").value, city=qs("#uCity").value, vehicleCode=qs("#uVehicle").value;
-    if(!name||!email||pass.length<6){ qs("#uMsg").textContent="أدخل الاسم والبريد وكلمة مرور 6 أحرف على الأقل."; return; }
+  var b=qs("#createUserBtn"), msg=qs("#uMsg");
+  on(b,"click",async function(){
+    var name=qs("#uName").value.trim(), email=qs("#uEmail").value.trim(), pass=qs("#uPass").value, role=qs("#uRole").value, city=qs("#uCity").value;
+    var vehicleCode=role==="driver"?qs("#uVehicle").value:"";
+    if(!name||!email||pass.length<6){ msg.innerHTML=bi("أدخل الاسم والبريد وكلمة مرور من 6 أحرف على الأقل.","Enter name, email and a password of at least 6 characters."); return; }
     b.disabled=true;
     try{
-      var appName="userCreator"+Date.now(); var secondary=firebase.initializeApp(FIREBASE_CONFIG,appName); var a=secondary.auth();
-      var cred=await a.createUserWithEmailAndPassword(email,pass); var uid=cred.user.uid; await a.signOut(); await secondary.delete();
-      await state.dbns.collection("users").doc(uid).set({name:name,email:email,role:role,city:city,vehicleCode:vehicleCode||null,active:true,createdAt:new Date().toISOString(),createdBy:state.currentUser.uid});
-      if(vehicleCode) await state.dbns.collection("vehicles").doc(vehicleCode).set({ownerUid:uid,ownerEmail:email,driverName:name,updatedAt:new Date().toISOString()},{merge:true});
-      qs("#uMsg").textContent="تم إنشاء الحساب بنجاح.";
-    }catch(e){ qs("#uMsg").textContent="تعذر إنشاء الحساب: "+(e.message||e.code||e); }
+      var secondary=firebase.initializeApp(FIREBASE_CONFIG,"userCreator"+Date.now()), a=secondary.auth();
+      var cred=await a.createUserWithEmailAndPassword(email,pass), uid=cred.user.uid;
+      await a.signOut(); await secondary.delete();
+      await state.dbns.collection("users").doc(uid).set({name:name,email:email,role:role,city:city,vehicleCode:null,active:true,createdAt:new Date().toISOString(),createdBy:state.currentUser.uid});
+      if(vehicleCode) await assignVehicle(uid,vehicleCode,{id:uid,name:name,email:email,vehicleCode:null});
+      msg.innerHTML=bi("تم إنشاء الحساب بنجاح.","Account created successfully.");
+    }catch(e){ console.error(e); msg.textContent="تعذر إنشاء الحساب / Could not create account: "+(e.message||e.code||e); }
     finally{ b.disabled=false; }
   });
   qsa("[data-saveuserveh]").forEach(function(btn){ on(btn,"click",async function(){
     var uid=btn.getAttribute("data-saveuserveh"), sel=qs('[data-userveh="'+uid+'"]');
-    try{ var vc=(sel&&sel.value)||null; await state.dbns.collection("users").doc(uid).update({vehicleCode:vc}); if(vc){var u=state.users.filter(function(x){return x.id===uid;})[0]||{};await state.dbns.collection("vehicles").doc(vc).set({ownerUid:uid,ownerEmail:u.email||"",driverName:u.name||"",updatedAt:new Date().toISOString()},{merge:true});} showToast("تم تحديث ربط المركبة","Vehicle assignment updated"); }
-    catch(e){ showToast("تعذر تحديث الربط","Could not update assignment"); }
-  });});
-  var clean=qs("#cleanupOrphanReportsBtn"); if(clean) on(clean,"click",async function(){
-    if(!confirm("سيتم حذف جميع التقارير التي لا توجد لها مركبة حاليًا. متابعة؟ / Delete reports belonging to vehicles that no longer exist?")) return;
-    clean.disabled=true;
-    try{
-      var vs=await state.dbns.collection("vehicles").get(), existing={};
-      vs.forEach(function(d){existing[d.id]=true;});
-      var refs=[];
-      var vr=await state.dbns.collection("vehicle_reports").get(); vr.forEach(function(d){var x=d.data()||{};if(x.vehicleCode&&!existing[x.vehicleCode])refs.push(d.ref);});
-      var er=await state.dbns.collection("equipment_reports").get(); er.forEach(function(d){var x=d.data()||{};if(x.vehicleCode&&!existing[x.vehicleCode])refs.push(d.ref);});
-      for(var i=0;i<refs.length;i+=450){var batch=state.dbns.batch();refs.slice(i,i+450).forEach(function(r){batch.delete(r);});await batch.commit();}
-      showToast("تم تنظيف "+refs.length+" تقريرًا للمركبات المحذوفة","Cleaned "+refs.length+" deleted-vehicle reports");
-    }catch(e){console.error(e);showToast("تعذر تنظيف التقارير القديمة","Could not clean old reports");}
-    finally{clean.disabled=false;}
-  });
-  var pub=qs("#publishUpdateBtn"); if(pub) on(pub,"click",async function(){
-    var version=new Date().toISOString();
-    try{ await state.dbns.collection("app_config").doc("fleet_app").set({version:version,publishedAt:version,publishedBy:state.currentUser.uid},{merge:true}); showToast("تم نشر إشعار التحديث لجميع المستخدمين","Update notice published"); }
-    catch(e){ showToast("تعذر نشر التحديث","Could not publish update"); }
+    try{ await assignVehicle(uid,(sel&&sel.value)||null); showToast("تم تحديث تعيين المركبة","Vehicle assignment updated"); }
+    catch(e){ console.error(e); showToast("تعذر تحديث التعيين","Could not update assignment"); }
+  }); });
+  qsa("[data-toggleuser]").forEach(function(btn){ on(btn,"click",async function(){
+    var uid=btn.getAttribute("data-toggleuser"), u=state.users.filter(function(x){ return x.id===uid; })[0]; if(!u) return;
+    var off=u.active===false;
+    if(!off && !confirm_("تعطيل حساب "+(u.name||u.email)+"؟ لن يتمكن من الدخول.","Disable this account? The user will not be able to sign in.")) return;
+    try{ await state.dbns.collection("users").doc(uid).update({active:off}); showToast(off?"تم تفعيل الحساب":"تم تعطيل الحساب",off?"Account enabled":"Account disabled"); }
+    catch(e){ console.error(e); showToast("تعذر تحديث الحساب","Could not update account"); }
+  }); });
+  on(qs("#publishUpdateBtn"),"click",async function(){
+    try{ await state.dbns.collection("app_config").doc("fleet_app").set({version:APP_VERSION,publishedAt:new Date().toISOString(),publishedBy:state.currentUser.uid},{merge:true}); showToast("تم نشر إشعار التحديث","Update notice published"); }
+    catch(e){ console.error(e); showToast("تعذر نشر التحديث","Could not publish update"); }
   });
 }
+
 function subscribeForProfile(){
-  if(!state.dbns||!state.currentUser)return;
-  state.dbns.collection("users").doc(state.currentUser.uid).get().then(function(doc){
-    if(!doc.exists) throw new Error("profile-missing");
-    state.currentProfile=doc.data()||{}; state.currentProfile.id=doc.id;
-    if(state.currentProfile.active===false) throw new Error("inactive");
-    renderShell(); startDataSubscriptions();
-  }).catch(function(){ state.auth.signOut(); alert("الحساب غير مفعّل في قاعدة المستخدمين."); });
-}
-function startDataSubscriptions(){
-  if(!state.dbns)return;
-  var p0=state.currentProfile||{};
-  if(p0.role==="driver"){
-    if(p0.vehicleCode){ state.dbns.collection("vehicles").doc(p0.vehicleCode).onSnapshot(function(doc){var all=[];if(doc.exists){var b=doc.data()||{};b.code=doc.id;if(b.active!==false)all=[b];}state.vehicles=all;state.vehiclesLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();else refreshCodeSelectsOnly();}); }
-    else {state.vehicles=[];state.vehiclesLoaded=true;renderTab();}
-  } else state.dbns.collection("vehicles").onSnapshot(function(snap){
-    var all=snap.docs.map(function(d){var b=d.data()||{};b.code=d.id;return b;}).filter(function(v){return v.active!==false;});
-    var p=state.currentProfile||{}; if(p.role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){return v.city===p.city;});
-    state.vehicles=all.sort(function(a,b){return (a.code||"").localeCompare(b.code||"");}); state.vehiclesLoaded=true; if(state.tab==="dashboard"||state.tab==="history"||state.tab==="users")renderTab(); else refreshCodeSelectsOnly();
-  });
-  state.dbns.collection("vehicle_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.vReports=all;state.reportsLoaded=true;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
-  state.dbns.collection("equipment_reports").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});var p=state.currentProfile||{};if(p.role==="driver")all=p.vehicleCode?all.filter(function(r){return r.vehicleCode===p.vehicleCode;}):[];state.eReports=all;if(state.tab==="dashboard"||state.tab==="history")renderTab();});
-  if(state.currentProfile.role==="admin") state.dbns.collection("users").onSnapshot(function(snap){state.users=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});if(state.tab==="users")renderTab();});
-  var prof=state.currentProfile||{};
-  if(prof.role==="supervisor" || prof.role==="driver" || prof.role==="admin"){
-    state.dbns.collection("notifications").orderBy("createdAt","desc").limit(100).onSnapshot(function(snap){var all=snap.docs.map(function(d){var b=d.data()||{};b.id=d.id;return b;});state.notifications=all.filter(function(n){return (n.recipientUid&&n.recipientUid===state.currentUser.uid)||(n.recipientRole&&n.recipientRole===prof.role);});if(state.tab==="dashboard")renderTab();});
-  }
-  state.dbns.collection("app_config").doc("fleet_app").onSnapshot(function(doc){
-    state.appUpdate=doc.exists?(doc.data()||{}):null;
-    var ver=state.appUpdate&&state.appUpdate.version, seen=safeLocalGet("ps_seen_app_version");
-    var ub=qs("#updateBtn");
-    if(ub){
-      if(ver && ver!==seen && state.currentProfile && state.currentProfile.role!=="admin"){
-        ub.hidden=false;
-        ub.onclick=function(){ safeLocalSet("ps_seen_app_version",ver); var u=new URL(location.href); u.searchParams.set("v",Date.now()); location.href=u.toString(); };
-      } else ub.hidden=true;
+  if(!state.dbns||!state.currentUser) return;
+  var first=true;
+  if(profileUnsub){ try{profileUnsub();}catch(e){} profileUnsub=null; }
+  function reject(){ alert("الحساب غير مفعّل في قاعدة المستخدمين. راجع المدير.\nThis account is not active. Contact the administrator."); state.auth.signOut(); }
+  profileUnsub=state.dbns.collection("users").doc(state.currentUser.uid).onSnapshot(function(doc){
+    if(!doc.exists || (doc.data()||{}).active===false){ reject(); return; }
+    var old=state.currentProfile, p=doc.data()||{}; p.id=doc.id; state.currentProfile=p;
+    if(first || !old || old.role!==p.role || old.vehicleCode!==p.vehicleCode || old.city!==p.city || old.name!==p.name){
+      first=false; renderShell(); startDataSubscriptions();
     }
-    if(state.tab==="users" && state.currentProfile && state.currentProfile.role==="admin") renderTab();
+  },function(err){ console.error(err); if(state.currentUser) reject(); });
+}
+
+function startDataSubscriptions(){
+  if(!state.dbns) return;
+  stopSubs();
+  var db=state.dbns, p=state.currentProfile||{}, role=p.role, uid=state.currentUser.uid;
+  state.vehicles=[]; state.vReports=[]; state.eReports=[]; state.notifications=[]; state.vehiclesLoaded=false;
+  function sub(q,cb){ unsubs.push(q.onSnapshot(function(s){ setConn(true); cb(s); },function(err){ console.error(err); setConn(false); })); }
+  function rer(){ if(state.tab==="dashboard"||state.tab==="history"||state.tab==="users") renderTab(); else refreshCodeSelectsOnly(); }
+  function repRer(){ refreshSuperOverlay(); if(state.tab==="dashboard"||state.tab==="history") renderTab(); }
+  function rows(snap){ return snap.docs.map(function(d){ var b=d.data()||{}; b.id=d.id; return b; }).sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); }); }
+  if(role==="driver"){
+    if(p.vehicleCode){
+      sub(db.collection("vehicles").doc(p.vehicleCode),function(doc){ var all=[]; if(doc.exists){ var b=doc.data()||{}; b.code=doc.id; if(b.active!==false) all=[b]; } state.vehicles=all; state.vehiclesLoaded=true; rer(); });
+      sub(db.collection("vehicle_reports").where("vehicleCode","==",p.vehicleCode),function(s){ state.vReports=rows(s); state.reportsLoaded=true; repRer(); });
+      sub(db.collection("equipment_reports").where("vehicleCode","==",p.vehicleCode),function(s){ state.eReports=rows(s); repRer(); });
+    } else { state.vehiclesLoaded=true; renderTab(); }
+  } else if(role==="admin"||role==="supervisor"){
+    sub(db.collection("vehicles"),function(snap){
+      var all=snap.docs.map(function(d){ var b=d.data()||{}; b.code=d.id; return b; });
+      state.allVehicleCodes=all.map(function(v){ return v.code; });
+      all=all.filter(function(v){ return v.active!==false; });
+      if(role==="supervisor"&&p.city&&p.city!=="all") all=all.filter(function(v){ return v.city===p.city; });
+      state.vehicles=all.sort(function(a,b){ return (a.code||"").localeCompare(b.code||""); }); state.vehiclesLoaded=true; rer();
+    });
+    sub(db.collection("vehicle_reports").orderBy("createdAt","desc").limit(300),function(s){ state.vReports=rows(s); state.reportsLoaded=true; repRer(); });
+    sub(db.collection("equipment_reports").orderBy("createdAt","desc").limit(300),function(s){ state.eReports=rows(s); repRer(); });
+  }
+  if(role==="admin") sub(db.collection("users"),function(snap){ state.users=snap.docs.map(function(d){ var b=d.data()||{}; b.id=d.id; return b; }); if(state.tab==="users") renderTab(); });
+  var nUid=[], nRole=[];
+  function mergeNotifs(){ state.notifications=nUid.concat(nRole).sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); }); if(state.tab==="dashboard") renderTab(); }
+  sub(db.collection("notifications").where("recipientUid","==",uid),function(s){ nUid=rows(s); mergeNotifs(); });
+  if(role) sub(db.collection("notifications").where("recipientRole","==",role),function(s){ nRole=rows(s); mergeNotifs(); });
+  sub(db.collection("app_config").doc("fleet_app"),function(doc){
+    state.appUpdate=doc.exists?(doc.data()||{}):null;
+    applyUpdateNotice();
+    if(state.tab==="users"&&role==="admin") renderTab();
   });
 }
+
 
 /* ========================================================================
    DATA INIT: capabilities + subscriptions
    ======================================================================== */
 function initCapabilities(){
   try{
-    if(!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.indexOf("YOUR_")===0){
-      state.dbns = null;
-    } else {
-      if(!firebase.apps || !firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
-      state.dbns = firebase.firestore();
-    }
+    if(!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.indexOf("YOUR_")===0){ state.dbns = null; }
+    else { if(!firebase.apps || !firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); } state.dbns = firebase.firestore(); }
   }catch(e){ state.dbns = null; }
   state.assetsns = null; state.downloadsns = null; state.userns = null; state.myId = null;
-  if(!state.dbns){ renderShell(); var badge=qs("#connBadge"); if(badge) badge.innerHTML=bi("غير متصل","Offline"); return; }
+  if(!state.dbns){ qs("#app").innerHTML='<div class="auth-wrap"><div class="auth-card">'+bi("تعذر الاتصال بقاعدة البيانات","Could not connect to the database")+'</div></div>'; return; }
   state.auth=firebase.auth();
   state.auth.onAuthStateChanged(function(user){
-    state.currentUser=user||null; state.currentProfile=null; state.users=[];
-    if(!user){ showLogin(); return; }
+    stopSubs(); if(profileUnsub){ try{profileUnsub();}catch(e){} profileUnsub=null; }
+    qsa(".overlay").forEach(function(o){ o.remove(); });
+    state.currentUser=user||null; state.currentProfile=null; state.users=[]; state.vehicles=[]; state.vReports=[]; state.eReports=[]; state.notifications=[];
+    if(!user){ state.myId=null; state.tab="dashboard"; state.editingVeh=null; showLogin(); return; }
     state.myId=user.uid; subscribeForProfile();
   });
 }
+
 
 function refreshCodeSelectsOnly(){
   var vSel = qs("#vCode"), eSel = qs("#eCode");
