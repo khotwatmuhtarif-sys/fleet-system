@@ -504,7 +504,7 @@ var TABS = [
 ];
 
 /* ===== V5.6 helpers ===== */
-var APP_VERSION="5.7.1";
+var APP_VERSION="5.7.2";
 var STATUS_LABELS={sound:["سليم","Sound","ok"],followup:["يحتاج متابعة","Needs Follow-up","warn"],maintenance:["يحتاج صيانة","Needs Maintenance","danger"],low:["ينقص","Low","danger"],missing:["غير موجود","Missing","danger"],not_sound:["غير سليم","Not Sound","danger"],available:["موجود","Available","ok"]};
 function statusRow(code){ var s=STATUS_LABELS[code]; return s?[code,s[0],s[1],s[2]]:null; }
 function isProblem(code){ return !!code && code!=="sound" && code!=="available"; }
@@ -1925,15 +1925,56 @@ function buildPrintSheet(type, r, submitter){
   return wrap;
 }
 
+/* صور PDF: العداد + صور البنود التي فيها مشكلة فقط */
+function pdfPhotoList(type, r){
+  var out=[], ph=r.photos||{};
+  function add(k,label){ var p=ph[k]; if(p && p.url && p.contentType!=="application/pdf") out.push({url:p.url,label:label}); }
+  function problems(table, src){
+    table.forEach(function(it){ var c=(src||{})[it[0]]||{}; if(isProblem(c.status)){ var s=statusRow(c.status); add(it[0], it[1]+" / "+it[2]+(s?" — "+s[1]+" / "+s[2]:"")); } });
+  }
+  if(type==="vehicle"){ add("odometer","صورة العداد / Odometer"); problems(VEHICLE_CHECK_ITEMS, r.checklist); }
+  else problems(EQUIPMENT_ITEMS, r.items);
+  return out;
+}
+async function fetchDataUrl(url){
+  var tries=[url.replace("/upload/","/upload/c_limit,w_800,h_800,q_auto,f_jpg/"), url];
+  for(var i=0;i<tries.length;i++){
+    try{
+      var resp=await fetch(tries[i],{mode:"cors"}); if(!resp.ok) continue;
+      var blob=await resp.blob();
+      return await new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){ res(fr.result); }; fr.onerror=rej; fr.readAsDataURL(blob); });
+    }catch(e){ console.error(e); }
+  }
+  return null;
+}
+function buildPhotoSheet(type, r, photos, pageNo, pages){
+  var wrap=document.createElement("div");
+  wrap.style.cssText="position:fixed; top:0; left:-10000px; width:794px; height:1123px; box-sizing:border-box; background:#ffffff; color:#16201a; direction:rtl; font-family:'IBM Plex Sans Arabic','Cairo',sans-serif; padding:28px;";
+  var h='<div style="background:#2F6690;color:#fff;font-weight:800;border-radius:7px;padding:7px 10px;margin-bottom:12px;font-size:13px">صور التقرير — '+esc(r.vehicleCode||"")+' <span style="opacity:.85;font-weight:600;font-size:10px">Report Photos · '+esc(type==="vehicle"?(r.inspectionDate||""):(r.date||""))+' · '+pageNo+'/'+pages+'</span></div>';
+  h+='<div style="font-size:10px;color:#5B6B60;margin-bottom:10px">'+(type==="vehicle"?"صورة العداد وصور البنود التي فيها ملاحظة فقط / Odometer and photos of items with issues only":"صور المعدات التي فيها ملاحظة فقط / Photos of equipment items with issues only")+'</div>';
+  h+='<table style="width:100%;border-collapse:separate;border-spacing:8px"><tbody>';
+  for(var i=0;i<photos.length;i+=2){
+    h+='<tr>'+[photos[i],photos[i+1]].map(function(p){
+      if(!p) return '<td style="width:50%"></td>';
+      return '<td style="width:50%;border:1px solid #D7E2D2;border-radius:8px;padding:6px;text-align:center;vertical-align:top">'+
+        '<div style="height:270px;line-height:270px;text-align:center">'+(p.data?'<img src="'+p.data+'" style="max-width:340px;max-height:270px;vertical-align:middle">':'<span style="font-size:11px;color:#C1402E">تعذر تحميل الصورة / Photo could not be loaded</span>')+'</div>'+
+        '<div style="font-size:10.5px;font-weight:700;color:#C1402E;margin-top:5px;line-height:1.5">'+esc(p.label)+'</div></td>';
+    }).join("")+'</tr>';
+  }
+  wrap.innerHTML=h+'</tbody></table>';
+  document.body.appendChild(wrap);
+  return wrap;
+}
 async function exportReportPDF(type, r, submitter){
   if(!window.html2canvas || !window.jspdf){
     showToast("تعذر تحميل أداة PDF، حاول لاحقًا","PDF tool failed to load, try again later");
     return;
   }
   showToast("جارٍ إنشاء ملف PDF…","Generating PDF…");
-  var sheet = buildPrintSheet(type, r, submitter);
+  var sheets=[];
   try{
-    var canvas = await window.html2canvas(sheet, {scale:2, backgroundColor:"#ffffff", useCORS:true});
+    var main=buildPrintSheet(type, r, submitter); sheets.push(main);
+    var canvas = await window.html2canvas(main, {scale:2, backgroundColor:"#ffffff", useCORS:true});
     var pdf = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
     var pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
     var ptPerPx = pageW / canvas.width;
@@ -1949,13 +1990,24 @@ async function exportReportPDF(type, r, submitter){
       pdf.addImage(slice.toDataURL("image/jpeg",0.92), "JPEG", 0, 0, pageW, h * ptPerPx);
       srcY += h; first = false;
     }
+    var photos=pdfPhotoList(type, r);
+    if(photos.length){
+      for(var i=0;i<photos.length;i++) photos[i].data=await fetchDataUrl(photos[i].url);
+      var per=6, pages=Math.ceil(photos.length/per);
+      for(var pg=0;pg<pages;pg++){
+        var ps=buildPhotoSheet(type, r, photos.slice(pg*per,(pg+1)*per), pg+1, pages); sheets.push(ps);
+        var pc=await window.html2canvas(ps, {scale:2, backgroundColor:"#ffffff"});
+        var ih=Math.min(pageH, pc.height*(pageW/pc.width));
+        pdf.addPage(); pdf.addImage(pc.toDataURL("image/jpeg",0.9), "JPEG", 0, 0, pageW, ih);
+      }
+    }
     var fname = (type==="vehicle"?"vehicle-report-":"equipment-report-")+(r.vehicleCode||"x")+"-"+(type==="vehicle"?r.inspectionDate:r.date)+".pdf";
     saveFile(fname, pdf.output("blob"));
   }catch(e){
     console.error("PDFERR "+(e&&e.stack||e));
     showToast("تعذر إنشاء ملف PDF","Could not generate the PDF");
   }finally{
-    sheet.remove();
+    sheets.forEach(function(s){ s.remove(); });
   }
 }
 
